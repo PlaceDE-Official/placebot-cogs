@@ -492,8 +492,8 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 await db.delete(channel)
                 continue
 
-            if not voice_channel.members:
-                asyncio.create_task(voice_channel.edit(name=await self.get_channel_name(guild)))
+            # if not voice_channel.members:
+            #     asyncio.create_task(voice_channel.edit(name=await self.get_channel_name(guild)))
 
     async def lock_channel(self, member: Member, channel: DynChannel, voice_channel: VoiceChannel, *, hide: bool):
         locked = channel.locked
