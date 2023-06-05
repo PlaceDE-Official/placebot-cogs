@@ -3,7 +3,7 @@ from datetime import timedelta
 from io import StringIO
 from typing import Optional, Union
 
-from discord import Embed, File, Forbidden, Guild, Member, Message, RawMessageDeleteEvent, TextChannel
+from discord import Embed, File, Forbidden, Guild, Member, Message, RawMessageDeleteEvent, TextChannel, User
 from discord.ext import commands, tasks
 from discord.ext.commands import Command, CommandError, Context, Group, UserInputError, guild_only
 from discord.utils import format_dt, snowflake_time, utcnow
@@ -133,6 +133,8 @@ class LoggingCog(Cog, name="Logging"):
             LoggingSettings.changelog_channel,
             LoggingSettings.member_join_channel,
             LoggingSettings.member_leave_channel,
+            LoggingSettings.member_name_change_channel,
+            # LoggingSettings.member_profile_picture_change_channel,
         ]:
             if await setting.get() == channel.id:
                 return False
@@ -312,6 +314,23 @@ class LoggingCog(Cog, name="Logging"):
 
         await log_channel.send(t.member_left_server(member))
 
+    async def on_member_nick_update(self, before: Member, after: Member):
+        if (log_channel := await self.get_logging_channel(LoggingSettings.member_name_change_channel)) is None:
+            return
+
+        if not after.nick:
+            await log_channel.send(t.member_nickname_clear(f"{before.mention} (`@{before}`, {before.id})"))
+        else:
+            await log_channel.send(t.member_nickname_change(f"{before.mention} (`@{before}`, {before.id})", after.nick))
+
+    async def on_user_update(self, before: User, after: User):
+        if before.name == after.name:
+            return
+        if (log_channel := await self.get_logging_channel(LoggingSettings.member_name_change_channel)) is None:
+            return
+
+        await log_channel.send(t.member_username_change(f"{before.mention} (`@{before}`, {before.id})", after.name))
+
     @commands.group(aliases=["log"])
     @LoggingPermission.read.check
     @guild_only()
@@ -368,6 +387,10 @@ class LoggingCog(Cog, name="Logging"):
     logging_changelog, *_ = add_channel(logging, "changelog", "change", "cl", "c")
     logging_member_join, *_ = add_channel(logging, "member_join", "memberjoin", "join", "mj")
     logging_member_leave, *_ = add_channel(logging, "member_leave", "memberleave", "leave", "ml")
+    member_name_change, *_ = add_channel(logging, "member_name_change", "membernamechange", "name", "mn")
+
+    # member_profile_picture_change_channel, *_ =
+    # add_channel(logging, "member_profile_picture_changes_channel", "memberppchange", "picture", "mp")
 
     @logging_edit.command(name="mindist", aliases=["md"])
     @docs(t.channels.edit.mindist.set_description)

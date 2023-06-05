@@ -25,6 +25,9 @@ created_at: Created At
 
 member_joined_server: "{} ({}) just joined the server!"
 member_left_server: "**{}** just left the server!"
+member_username_change: "**{}** changed their **username** to `{}`."
+member_nickname_change: "**{}** changed their **nickname** to `{}`."
+member_nickname_clear: "**{}** cleared their **nickname**."
 
 log_not_changed_no_permissions: >
   Logging channel could not be changed because I don't have `send_messages` permission there.
@@ -87,6 +90,14 @@ channels:
     disable_description: disable logging of member leave events
     updated: "**Logs** for **member leave** events will now be **sent** to {}. :white_check_mark:"
     disabled: "**Logging** for **member leave** events has been **disabled**. :white_check_mark:"
+
+  member_name_change:
+    name: ":speech_balloon: Member Name Change Channel"
+    manage_description: change settings for member name change logging
+    set_description: change member name change logging channel
+    disable_description: disable logging of member name change events
+    updated: "**Logs** for **member name change** events will now be **sent** to {}. :white_check_mark:"
+    disabled: "**Logging** for **member name change** events has been **disabled**. :white_check_mark:"
 
 maxage: ":clock3: Maximum Age"
 maxage_disabled: Automatic deletion of old log entries is disabled.

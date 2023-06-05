@@ -11,3 +11,5 @@ class LoggingSettings(Settings):
     changelog_channel = -1
     member_join_channel = -1
     member_leave_channel = -1
+    member_name_change_channel = -1
+    # member_profile_picture_change_channel = -1
