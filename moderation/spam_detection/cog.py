@@ -7,7 +7,7 @@ from discord.ext.commands import Context, UserInputError, guild_only
 
 from PyDrocsid.cog import Cog
 from PyDrocsid.command import CommandError, docs, reply
-from PyDrocsid.redis import redis
+from PyDrocsid.redis_client import redis
 from PyDrocsid.translations import t
 
 from .colors import Colors

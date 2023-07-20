@@ -21,7 +21,7 @@ from PyDrocsid.database import db, filter_by, select
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.logger import get_logger
 from PyDrocsid.permission import BasePermissionLevel
-from PyDrocsid.redis import redis
+from PyDrocsid.redis_client import redis
 from PyDrocsid.translations import t
 from PyDrocsid.util import check_message_send_permissions
 

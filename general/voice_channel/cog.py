@@ -38,7 +38,7 @@ from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.emojis import name_to_emoji
 from PyDrocsid.multilock import MultiLock
 from PyDrocsid.prefix import get_prefix
-from PyDrocsid.redis import redis
+from PyDrocsid.redis_client import redis
 from PyDrocsid.settings import RoleSettings
 from PyDrocsid.translations import t
 from PyDrocsid.util import check_role_assignable, send_editable_log

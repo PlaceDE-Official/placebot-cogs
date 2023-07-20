@@ -10,7 +10,7 @@ from discord.utils import format_dt, snowflake_time
 from PyDrocsid.cog import Cog
 from PyDrocsid.command import docs
 from PyDrocsid.embeds import send_long_embed
-from PyDrocsid.redis import redis
+from PyDrocsid.redis_client import redis
 from PyDrocsid.settings import RoleSettings
 from PyDrocsid.translations import t
 

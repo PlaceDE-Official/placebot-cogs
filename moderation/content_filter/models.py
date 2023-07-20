@@ -8,7 +8,7 @@ from sqlalchemy import BigInteger, Boolean, Column, Integer, Text
 
 from PyDrocsid.database import Base, UTCDateTime, db, select
 from PyDrocsid.environment import CACHE_TTL
-from PyDrocsid.redis import redis
+from PyDrocsid.redis_client import redis
 
 
 async def sync_redis() -> list[str]:

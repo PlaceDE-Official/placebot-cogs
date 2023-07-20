@@ -5,7 +5,7 @@ from sqlalchemy import BigInteger, Column
 from PyDrocsid.async_thread import lock_deco
 from PyDrocsid.database import Base, db, delete, select
 from PyDrocsid.environment import CACHE_TTL
-from PyDrocsid.redis import redis
+from PyDrocsid.redis_client import redis
 
 
 @lock_deco

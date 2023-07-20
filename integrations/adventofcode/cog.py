@@ -50,7 +50,7 @@ class AOCConfig:
         if not cls.SESSION:
             return False
 
-        response = requests.get(BASE_URL + "leaderboard/private", cookies={"session": cls.SESSION})
+        response = requests.get(BASE_URL + "leaderboard/private", cookies={"session": cls.SESSION}, timeout=10)
         if not response.ok or not response.url.endswith("private"):
             return False
 
@@ -64,7 +64,7 @@ class AOCConfig:
 
     @classmethod
     def _request(cls, url):
-        return requests.get(url, cookies={"session": cls.SESSION})
+        return requests.get(url, cookies={"session": cls.SESSION}, timeout=10)
 
     @classmethod
     async def get_leaderboard(cls, disable_hook: bool = False) -> dict:
@@ -177,10 +177,10 @@ def get_git_repo(url: str) -> Optional[str]:
         if not (match := re.match(pattern, url)):
             continue
         _, user, repo, path = match.groups()
-        if not (response := requests.get(api.format(user=user, repo=repo))).ok:
+        if not (response := requests.get(api.format(user=user, repo=repo), timeout=10)).ok:
             break
         url = response.json()[web_url_key] + (path or "")
-        if not requests.head(url).ok:
+        if not requests.head(url, timeout=10).ok:
             break
         return url
     return None

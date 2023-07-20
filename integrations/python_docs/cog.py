@@ -40,7 +40,7 @@ from PyDrocsid.cog import Cog
 from PyDrocsid.command import reply
 from PyDrocsid.environment import CACHE_TTL
 from PyDrocsid.logger import get_logger
-from PyDrocsid.redis import redis
+from PyDrocsid.redis_client import redis
 from PyDrocsid.translations import t
 
 from .colors import Colors

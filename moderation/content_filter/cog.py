@@ -11,7 +11,7 @@ from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.emojis import name_to_emoji
 from PyDrocsid.environment import CACHE_TTL
 from PyDrocsid.events import StopEventHandling
-from PyDrocsid.redis import redis
+from PyDrocsid.redis_client import redis
 from PyDrocsid.translations import t
 
 from .colors import Colors

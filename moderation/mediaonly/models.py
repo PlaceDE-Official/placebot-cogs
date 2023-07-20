@@ -8,7 +8,7 @@ from sqlalchemy import BigInteger, Column, Integer, Text
 
 from PyDrocsid.database import Base, UTCDateTime, db, delete, filter_by, select
 from PyDrocsid.environment import CACHE_TTL
-from PyDrocsid.redis import redis
+from PyDrocsid.redis_client import redis
 
 
 class MediaOnlyChannel(Base):

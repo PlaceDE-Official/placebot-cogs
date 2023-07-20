@@ -10,7 +10,7 @@ from PyDrocsid.emojis import name_to_emoji
 from PyDrocsid.environment import OWNER_ID
 from PyDrocsid.events import call_event_handlers
 from PyDrocsid.permission import permission_override
-from PyDrocsid.redis import redis
+from PyDrocsid.redis_client import redis
 from PyDrocsid.translations import t
 
 from .permissions import SudoPermission

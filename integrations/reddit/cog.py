@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from aiohttp import ClientSession
-from discord import Embed, TextChannel
+from discord import Embed, TextChannel, Thread
 from discord.ext import commands, tasks
 from discord.ext.commands import CommandError, Context, UserInputError, guild_only
 
@@ -115,7 +115,7 @@ class RedditCog(Cog, name="Reddit"):
         logger.info("pulling hot reddit posts")
         limit = await RedditSettings.limit.get()
         async for reddit_channel in await db.stream(select(RedditChannel)):  # type: RedditChannel
-            text_channel: Optional[TextChannel] = self.bot.get_channel(reddit_channel.channel)
+            text_channel: Optional[TextChannel | Thread] = self.bot.get_channel(reddit_channel.channel)
             if text_channel is None:
                 await db.delete(reddit_channel)
                 continue
@@ -171,7 +171,7 @@ class RedditCog(Cog, name="Reddit"):
 
         out = []
         async for reddit_channel in await db.stream(select(RedditChannel)):  # type: RedditChannel
-            text_channel: Optional[TextChannel] = self.bot.get_channel(reddit_channel.channel)
+            text_channel: Optional[TextChannel | Thread] = self.bot.get_channel(reddit_channel.channel)
             if text_channel is None:
                 await db.delete(reddit_channel)
             else:
@@ -183,7 +183,7 @@ class RedditCog(Cog, name="Reddit"):
 
     @reddit.command(name="add", aliases=["a", "+"])
     @RedditPermission.write.check
-    async def reddit_add(self, ctx: Context, subreddit: str, channel: TextChannel):
+    async def reddit_add(self, ctx: Context, subreddit: str, channel: TextChannel | Thread):
         """
         create a link between a subreddit and a channel
         """
@@ -203,7 +203,7 @@ class RedditCog(Cog, name="Reddit"):
 
     @reddit.command(name="remove", aliases=["r", "del", "d", "-"])
     @RedditPermission.write.check
-    async def reddit_remove(self, ctx: Context, subreddit: str, channel: TextChannel):
+    async def reddit_remove(self, ctx: Context, subreddit: str, channel: TextChannel | Thread):
         """
         remove a reddit link
         """

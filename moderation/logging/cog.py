@@ -14,7 +14,7 @@ from PyDrocsid.database import db_wrapper
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.environment import CACHE_TTL
 from PyDrocsid.logger import get_logger
-from PyDrocsid.redis import redis
+from PyDrocsid.redis_client import redis
 from PyDrocsid.translations import t
 from PyDrocsid.util import calculate_edit_distance, check_message_send_permissions
 
