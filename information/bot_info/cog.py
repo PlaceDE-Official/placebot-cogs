@@ -107,7 +107,7 @@ class BotInfoCog(Cog, name="Bot Information"):
     def __init__(self, *, info_icon: Optional[str] = None):
         super().__init__()
 
-        self.info_icon: Optional[str] = info_icon
+        self.info_icon: Optional[str] = info_icon or "https://github.com/PlaceDe-Official.png"
         self.repo_description: str = ""
         self.github_users: Optional[dict[str, GitHubUser]] = {}
         self.current_status = 0
@@ -133,11 +133,11 @@ class BotInfoCog(Cog, name="Bot Information"):
 
         return " ".join(x for x in [discord_mention, github_profile] if x)
 
-    async def on_ready(self):
-        try:
-            self.status_loop.start()
-        except RuntimeError:
-            self.status_loop.restart()
+    # async def on_ready(self):
+    #    try:
+    #        self.status_loop.start()
+    #    except RuntimeError:
+    #        self.status_loop.restart()
 
     @tasks.loop(seconds=20)
     async def status_loop(self):
@@ -147,15 +147,10 @@ class BotInfoCog(Cog, name="Bot Information"):
     @property
     def info_components(self) -> list[Callable[[BotInfoCog, Embed], Awaitable[None]]]:
         return [
-            InfoComponent.author(True),
             InfoComponent.version(True),
             InfoComponent.enabled_cogs(True),
-            InfoComponent.contributors(False),
-            InfoComponent.github_repo(False),
-            InfoComponent.pydrocsid(False),
             InfoComponent.prefix(True),
             InfoComponent.help_command(True),
-            InfoComponent.bugs_features(False),
         ]
 
     async def build_info_embed(self) -> Embed:
@@ -169,21 +164,21 @@ class BotInfoCog(Cog, name="Bot Information"):
 
         return embed
 
-    @commands.command(aliases=["gh"])
-    @docs(t.commands.github)
-    async def github(self, ctx: Context):
-        if not self.repo_description:
-            self.repo_description = await get_repo_description(Config.REPO_OWNER, Config.REPO_NAME)
-
-        embed = Embed(
-            title=f"{Config.REPO_OWNER}/{Config.REPO_NAME}",
-            description=self.repo_description,
-            colour=Colors.github,
-            url=Config.REPO_LINK,
-        )
-        embed.set_author(name="GitHub", icon_url="https://github.com/fluidicon.png")
-        embed.set_thumbnail(url=Config.REPO_ICON)
-        await reply(ctx, embed=embed)
+    # @commands.command(aliases=["gh"])
+    # @docs(t.commands.github)
+    # async def github(self, ctx: Context):
+    #    if not self.repo_description:
+    #        self.repo_description = await get_repo_description(Config.REPO_OWNER, Config.REPO_NAME)
+    #
+    #        embed = Embed(
+    #            title=f"{Config.REPO_OWNER}/{Config.REPO_NAME}",
+    #            description=self.repo_description,
+    #            colour=Colors.github,
+    #            url=Config.REPO_LINK,
+    #        )
+    #        embed.set_author(name="GitHub", icon_url="https://github.com/fluidicon.png")
+    #        embed.set_thumbnail(url=Config.REPO_ICON)
+    #        await reply(ctx, embed=embed)
 
     @commands.command(aliases=["v"])
     @docs(t.commands.version)
@@ -196,22 +191,22 @@ class BotInfoCog(Cog, name="Bot Information"):
     async def info(self, ctx: Context):
         await send_long_embed(ctx, await self.build_info_embed())
 
-    @commands.command(aliases=["contri", "con"])
-    @docs(t.commands.contributors)
-    async def contributors(self, ctx: Context):
-        if not self.github_users:
-            await self.load_github_users()
-
-        contributors = [f for c, _ in Config.CONTRIBUTORS.most_common() if (f := self.format_contributor(c, True))]
-
-        await send_long_embed(
-            ctx,
-            Embed(
-                title=t.cnt_contributors(cnt=len(contributors)),
-                colour=Colors.info,
-                description="\n".join(f":small_orange_diamond: {con}" for con in contributors),
-            ),
-        )
+    #  @commands.command(aliases=["contri", "con"])
+    #  @docs(t.commands.contributors)
+    #  async def contributors(self, ctx: Context):
+    #      if not self.github_users:
+    #          await self.load_github_users()
+    #
+    #        contributors = [f for c, _ in Config.CONTRIBUTORS.most_common() if (f := self.format_contributor(c, True))]
+    #
+    #        await send_long_embed(
+    #            ctx,
+    #            Embed(
+    #                title=t.cnt_contributors(cnt=len(contributors)),
+    #                colour=Colors.info,
+    #                description="\n".join(f":small_orange_diamond: {con}" for con in contributors),
+    #            ),
+    #        )
 
     @commands.command()
     @docs(t.commands.cogs)
