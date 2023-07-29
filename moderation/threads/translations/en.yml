@@ -7,3 +7,4 @@ commands:
 threads: Threads
 no_threads: No threads have been created yet!
 new_thread_alert: Thread {} has been created in {} but auto join members could not be added, because I don't have permission to send messages there!
+gathering_threads: "I am now gathering all threads, this might take a moment..."

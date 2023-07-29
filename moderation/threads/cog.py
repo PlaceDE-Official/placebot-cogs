@@ -7,6 +7,7 @@ from discord.ext import commands
 from discord.ext.commands import Context, guild_only
 from discord.utils import format_dt, snowflake_time
 
+from PyDrocsid.async_thread import semaphore_gather
 from PyDrocsid.cog import Cog
 from PyDrocsid.command import docs
 from PyDrocsid.embeds import send_long_embed
@@ -67,16 +68,19 @@ class ThreadsCog(Cog, name="Thread Utils"):
         def last_timestamp(thread: Thread) -> datetime:
             return snowflake_time(thread.last_message_id)
 
+        msg = await ctx.reply(t.gathering_threads)
+
         threads = [
             *{
                 thread
-                for threads in await asyncio.gather(
+                for threads in await semaphore_gather(
+                    5,
                     *[
                         get_threads(channel)
                         for channel in ctx.guild.text_channels
                         if channel.permissions_for(ctx.guild.me).read_message_history
                         and channel.permissions_for(ctx.author).view_channel
-                    ]
+                    ],
                 )
                 for thread in threads
             }
@@ -102,5 +106,6 @@ class ThreadsCog(Cog, name="Thread Utils"):
         if not out:
             embed.description = t.no_threads
             embed.colour = Colors.error
+        await msg.delete()
 
         await send_long_embed(ctx, embed, paginate=True)
