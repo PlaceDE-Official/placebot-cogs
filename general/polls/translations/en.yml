@@ -1,6 +1,7 @@
 permissions:
   team_poll: start a team poll
   delete: delete polls
+  role_poll: create role restricted polls
 
 poll: Poll
 team_poll: Team Poll
