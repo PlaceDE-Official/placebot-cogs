@@ -5,6 +5,7 @@ import random
 from os import getenv
 from pathlib import Path
 from typing import Optional, Union
+from weakref import WeakValueDictionary
 
 from discord import (
     CategoryChannel,
@@ -54,6 +55,13 @@ tg = t.g
 t = t.voice_channel
 
 Overwrites = dict[Union[Member, Role], PermissionOverwrite]
+
+
+locks = WeakValueDictionary()
+
+
+class Foo(object):
+    pass
 
 
 def merge_permission_overwrites(
@@ -284,6 +292,19 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
     def prepare(self) -> bool:
         return bool(self.names)
 
+    def check_name(self, name):
+        s = name.lower()
+        dp = [False for _ in s]
+        for i in reversed(range(len(s))):
+            if s[i] == " " and (i + 1 >= len(s) or dp[i + 1]):
+                dp[i] = True
+                continue
+            for w in self.allowed_names:
+                if s[i : i + len(w)] == w and (i + len(w) >= len(s) or s[i + len(w)] == " "):
+                    dp[i] = True
+                    break
+        return dp[0]
+
     def _get_name_list(self, guild_id: int) -> str:
         r = random.Random(f"{guild_id}{utcnow().date().isoformat()}")
         return r.choice(sorted(self.names))
@@ -496,6 +517,8 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             #     asyncio.create_task(voice_channel.edit(name=await self.get_channel_name(guild)))
 
     async def lock_channel(self, member: Member, channel: DynChannel, voice_channel: VoiceChannel, *, hide: bool):
+        while channel.channel_id in locks:
+            await asyncio.sleep(1)
         locked = channel.locked
         channel.locked = True
         member_overwrites = [
@@ -666,6 +689,8 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             await self.update_owner(channel, await self.fetch_owner(channel))
 
         if all(c.members for chnl in channel.group.channels if (c := self.bot.get_channel(chnl.channel_id))):
+            foo = Foo()
+            locks.update({channel.channel_id: foo})
             overwrites = voice_channel.overwrites
             if channel.locked:
                 overwrites = remove_lock_overrides(
@@ -998,7 +1023,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
         if not name:
             name = await self.get_channel_name(ctx.guild)
-        elif name.lower() not in self.allowed_names:
+        elif not self.check_name(name):
             if not await VoiceChannelPermission.dyn_rename.check_permissions(ctx.author):
                 raise CommandError(t.no_custom_name)
 

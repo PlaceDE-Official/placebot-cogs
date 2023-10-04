@@ -10,4 +10,5 @@ class PollsPermission(BasePermission):
         return t.polls.permissions[self.name]
 
     team_poll = auto()
+    role_poll = auto()
     delete = auto()

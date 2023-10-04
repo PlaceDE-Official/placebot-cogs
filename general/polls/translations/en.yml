@@ -4,6 +4,7 @@ permissions:
 
 poll: Poll
 team_poll: Team Poll
+rolepoll: Role Restricted Poll
 vote_explanation: Vote using the reactions below!
 too_many_options: You specified too many options. The maximum amount is {}.
 option_too_long: Options are limited to {} characters.
@@ -14,13 +15,27 @@ poll_usage: |
   <question>
   [emoji1] <option1>
   [emojiX] [optionX]
+rolepoll_usage: |
+  <roles>
+  <question>
+  [emoji1] <option1>
+  [emojiX] [optionX]
 team_role_not_set: Team role is not set.
 team_role_no_members: The team role has no members.
-teampoll_all_voted: "All teamlers voted :white_check_mark:"
-teamlers_missing:
+rolepoll_all_voted: "All teamlers voted :white_check_mark:"
+role_poll_not_allowed: Sorry, but you are not allowed to do that!
+users_missing:
   one: "{last} hasn't voted yet."
   many: "{teamlers} and {last} haven't voted yet."
-created_by: Created by @{} ({})
+too_many_users: "I can not display this many users! Use the `pollmembers` command to do that!"
+created_by: "Created by @{} (Author ID: {})"
+status: "Poll Status"
+roles: "Roles"
 can_not_use_wastebucket_as_option: "You can not use :wastebasket: as option"
 foreign_message: "You are not allowed to add yes/no reactions to foreign messages!"
 could_not_add_reactions: Could not add reactions because I don't have `add_reactions` permission in {}.
+member_list_cnt:
+  one: "Missing: ({cnt} Member)"
+  many: "Missing Members: ({cnt} Members)"
+no_members: No member missing.
+member_list: Member List

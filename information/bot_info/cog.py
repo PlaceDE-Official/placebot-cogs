@@ -11,7 +11,7 @@ from PyDrocsid.cog import Cog, get_documentation
 from PyDrocsid.command import docs, reply
 from PyDrocsid.config import Config
 from PyDrocsid.embeds import send_long_embed
-from PyDrocsid.github_api import GitHubUser, get_repo_description, get_users
+from PyDrocsid.github_api import GitHubUser, get_users
 from PyDrocsid.prefix import get_prefix
 from PyDrocsid.translations import t
 

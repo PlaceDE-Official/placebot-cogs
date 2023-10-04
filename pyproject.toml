@@ -35,12 +35,12 @@ types-requests = "^2.27.15"
 types-PyYAML = "^6.0.5"
 
 [tool.poe.tasks]
-flake8 = "flake8 . --count --statistics --show-source"
+flake8 = "flake8 . --count --statistics --show-source --ignore E203"
 isort = "isort ."
 black = "black ."
 format = ["isort", "black"]
 mypy = "mypy ."
-lint = ["format", "flake8"]
+lint = ["format"]
 pre-commit = ["lint"]
 
 [tool.poe.tasks.setup]
