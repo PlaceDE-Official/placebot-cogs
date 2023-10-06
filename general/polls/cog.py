@@ -2,7 +2,6 @@ import re
 import string
 from typing import List, Optional, Tuple
 
-from cogs.custom.role_adder.cog import RoleListConverter
 from discord import Embed, Forbidden, Member, Message, PartialEmoji, Role, Status
 from discord.ext import commands
 from discord.ext.commands import CommandError, Context, guild_only
@@ -14,7 +13,7 @@ from PyDrocsid.emojis import emoji_to_name, name_to_emoji
 from PyDrocsid.events import StopEventHandling
 from PyDrocsid.settings import RoleSettings
 from PyDrocsid.translations import t
-from PyDrocsid.util import check_wastebasket, is_teamler
+from PyDrocsid.util import check_wastebasket, is_teamler, RoleListConverter
 
 from .colors import Colors
 from .permissions import PollsPermission
@@ -59,6 +58,8 @@ async def send_poll(
 
     if not options:
         raise CommandError(t.missing_options)
+    if fields is None:
+        fields = []
     if len(options) > MAX_OPTIONS - allow_delete:
         raise CommandError(t.too_many_options(MAX_OPTIONS - allow_delete))
 
