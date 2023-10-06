@@ -13,7 +13,7 @@ from PyDrocsid.emojis import emoji_to_name, name_to_emoji
 from PyDrocsid.events import StopEventHandling
 from PyDrocsid.settings import RoleSettings
 from PyDrocsid.translations import t
-from PyDrocsid.util import check_wastebasket, is_teamler, RoleListConverter
+from PyDrocsid.util import RoleListConverter, check_wastebasket, is_teamler
 
 from .colors import Colors
 from .permissions import PollsPermission

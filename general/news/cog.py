@@ -1,5 +1,5 @@
 import re
-from typing import Optional, Union, List, Dict
+from typing import Dict, List, Optional, Union
 
 from discord import Embed, Forbidden, HTTPException, Member, Role, TextChannel
 from discord.ext import commands
@@ -7,17 +7,19 @@ from discord.ext.commands import CommandError, Context, UserInputError, guild_on
 from sqlalchemy import and_
 
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import reply, add_reactions
+from PyDrocsid.command import add_reactions, reply
 from PyDrocsid.database import db, select
-from PyDrocsid.discohook import MessageContent, load_discohook_link, DiscoHookError
+from PyDrocsid.discohook import DiscoHookError, MessageContent, load_discohook_link
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.translations import t
-from PyDrocsid.util import RoleListConverter, check_message_send_permissions, attachment_to_file
+from PyDrocsid.util import RoleListConverter, attachment_to_file, check_message_send_permissions
+
 from .colors import Colors
 from .models import NewsAuthorization
 from .permissions import NewsPermission
 from ...contributor import Contributor
 from ...pubsub import send_to_changelog
+
 
 tg = t.g
 t = t.news
@@ -51,8 +53,9 @@ class NewsCog(Cog, name="News"):
         channels: Dict[TextChannel, Dict[Union[Member, Role], List[Role]]] = {}
         auth: NewsAuthorization
         async for auth in await db.stream(select(NewsAuthorization)):
-            source: Optional[Union[Member, Role]] = (ctx.guild.get_member(auth.source_id)
-                                                     or ctx.guild.get_role(auth.source_id))
+            source: Optional[Union[Member, Role]] = ctx.guild.get_member(auth.source_id) or ctx.guild.get_role(
+                auth.source_id
+            )
             notification_rid: Optional[Role] = ctx.guild.get_role(auth.notification_role_id)
             channel: Optional[TextChannel] = ctx.guild.get_channel(auth.channel_id)
             if source is None or channel is None or notification_rid is None and auth.notification_role_id is not None:
@@ -83,8 +86,14 @@ class NewsCog(Cog, name="News"):
 
     @news_auth.command(name="add", aliases=["a", "+"])
     @NewsPermission.write.check
-    async def news_auth_add(self, ctx: Context, source: Union[Member, Role], channel: TextChannel, *,
-                            allowed_roles: RoleListConverter = None):
+    async def news_auth_add(
+        self,
+        ctx: Context,
+        source: Union[Member, Role],
+        channel: TextChannel,
+        *,
+        allowed_roles: RoleListConverter = None,
+    ):
         """
         authorize a new user / role to send news to a specific channel (and optionally ping specific roles)
         This is "additive"; you can add more roles later without needing to specify all allowed roles every time
@@ -111,8 +120,10 @@ class NewsCog(Cog, name="News"):
         missing_roles = []
         # check if any of the allowed pings are new
         for role in allowed_roles:
-            if not await db.exists(select(NewsAuthorization).filter_by(
-                    source_id=source.id, channel_id=channel.id, otification_role_id=role.id)
+            if not await db.exists(
+                select(NewsAuthorization).filter_by(
+                    source_id=source.id, channel_id=channel.id, notification_role_id=role.id
+                )
             ):
                 missing_roles.append(role)
 
@@ -129,14 +140,26 @@ class NewsCog(Cog, name="News"):
         value1 = t.news_authorized_ping(target_type=source_type, roles=", ".join(roles), last=last, cnt=len(roles) + 1)
         embed = Embed(title=t.news, colour=Colors.News, description=value1)
         await reply(ctx, embed=embed)
-        value2 = t.log_news_authorized_ping(source.mention, channel.mention, target_type=source_type,
-                                            roles=", ".join(roles), last=last, cnt=len(roles) + 1)
+        value2 = t.log_news_authorized_ping(
+            source.mention,
+            channel.mention,
+            target_type=source_type,
+            roles=", ".join(roles),
+            last=last,
+            cnt=len(roles) + 1,
+        )
         await send_to_changelog(ctx.guild, value2)
 
     @news_auth.command(name="remove", aliases=["del", "r", "d", "-"])
     @NewsPermission.write.check
-    async def news_auth_remove(self, ctx: Context, source: Union[Member, Role], channel: TextChannel, *,
-                               allowed_roles: Optional[RoleListConverter]):
+    async def news_auth_remove(
+        self,
+        ctx: Context,
+        source: Union[Member, Role],
+        channel: TextChannel,
+        *,
+        allowed_roles: Optional[RoleListConverter],
+    ):
         """
         remove an authorization for a user / role to send news to a specific channel
         This is "subtractive"; you can remove roles without needing to specify all allowed roles every time
@@ -163,8 +186,9 @@ class NewsCog(Cog, name="News"):
         deleted = []
         for ping in allowed_roles:
             authorization: Optional[NewsAuthorization] = await db.first(
-                select(NewsAuthorization).filter_by(source_id=source.id, channel_id=channel.id,
-                                                    notification_role_id=ping.id)
+                select(NewsAuthorization).filter_by(
+                    source_id=source.id, channel_id=channel.id, notification_role_id=ping.id
+                )
             )
             if authorization:
                 deleted.append(ping)
@@ -174,18 +198,23 @@ class NewsCog(Cog, name="News"):
 
         *roles, last = (x.mention for x in deleted)
         roles: list[str]
-        value1 = t.news_unauthorized_ping(target_type=source_type, roles=", ".join(roles), last=last,
-                                          cnt=len(roles) + 1)
+        value1 = t.news_unauthorized_ping(
+            target_type=source_type, roles=", ".join(roles), last=last, cnt=len(roles) + 1
+        )
         embed = Embed(title=t.news, colour=Colors.News, description=value1)
         await reply(ctx, embed=embed)
-        value2 = t.log_news_unauthorized_ping(source.mention, channel.mention, target_type=source_type,
-                                              roles=", ".join(roles), last=last,
-                                              cnt=len(roles) + 1)
+        value2 = t.log_news_unauthorized_ping(
+            source.mention,
+            channel.mention,
+            target_type=source_type,
+            roles=", ".join(roles),
+            last=last,
+            cnt=len(roles) + 1,
+        )
         await send_to_changelog(ctx.guild, value2)
 
     @news.command(name="send", aliases=["s"])
-    async def news_send(
-            self, ctx: Context, channel: TextChannel, *, discohook_url: str):
+    async def news_send(self, ctx: Context, channel: TextChannel, *, discohook_url: str):
         """
         send a news message
         - generate the discohook link using https://discohook.org (use "Share Message" at the top of the page to get short link)
@@ -214,7 +243,7 @@ class NewsCog(Cog, name="News"):
             select(NewsAuthorization).filter(
                 and_(
                     NewsAuthorization.source_id.in_([role.id for role in ctx.author.roles] + [ctx.author.id]),
-                    NewsAuthorization.channel_id == channel.id
+                    NewsAuthorization.channel_id == channel.id,
                 )
             )
         )
@@ -232,8 +261,9 @@ class NewsCog(Cog, name="News"):
                 pings.pop(auth.notification_role_id, None)
         if pings:
             *roles, last = (x.mention for x in pings.values())
-            raise CommandError(t.news_you_are_not_authorized_ping(roles=", ".join(roles), last=last,
-                                                                  cnt=len(roles) + 1))
+            raise CommandError(
+                t.news_you_are_not_authorized_ping(roles=", ".join(roles), last=last, cnt=len(roles) + 1)
+            )
 
         check_message_send_permissions(channel, check_embed=any(m.embeds for m in messages))
 
@@ -242,7 +272,9 @@ class NewsCog(Cog, name="News"):
                 content: str | None = message.content
                 await channel.send(content=content, embeds=message.embeds)
             if ctx.message.attachments:
-                await channel.send(files=[await attachment_to_file(attachment) for attachment in ctx.message.attachments])
+                await channel.send(
+                    files=[await attachment_to_file(attachment) for attachment in ctx.message.attachments]
+                )
         except (HTTPException, Forbidden) as e:
             if e.status == 400 and "Invalid Form" in e.text:
                 raise CommandError(t.message_not_compliant)
