@@ -2,18 +2,41 @@ permissions:
   read: read news authorizations
   write: write news authorizations
 
+user: User
+role: Role
 news: News
-news_already_authorized: User is already authorized to send news in this channel.
-news_authorized: "User has been authorized to send news in this channel. :white_check_mark:"
-log_news_authorized: "User {} has been **authorized** to **send news** in {}."
-news_not_authorized: User is not authorized to send news in this channel.
-news_unauthorized: "User has been unauthorized to send news in this channel. :white_check_mark:"
-log_news_unauthorized: "User {} has been **unauthorized** to **send news** in {}."
-no_news_authorizations: No user has been authorized to send news yet.
+
+news_already_authorized: "{} is already authorized to send news in this channel."
+news_already_authorized_ping: "{} is already authorized to send news in this channel and ping the given roles."
+news_authorized: "{} has been authorized to send news in this channel. :white_check_mark:"
+log_news_authorized: "{} {} has been **authorized** to **send news** in {}."
+news_authorized_ping:
+  one: "{target_type} has been authorized to send news in this channel and ping {last}. :white_check_mark:"
+  many: "{target_type} has been authorized to send news in this channel and ping {roles} and {last}. :white_check_mark:"
+log_news_authorized_ping:
+  one: "{target_type} {} has been **authorized** to **send news** in {} and ping {last}. :white_check_mark:"
+  many: "{target_type} {} has been **authorized** to **send news** in {} and ping {roles} and {last}. :white_check_mark:"
+
+news_unauthorized: "{} has been unauthorized to send news in this channel. :white_check_mark:"
+log_news_unauthorized: "{} {} has been **unauthorized** to **send news** in {}."
+news_unauthorized_ping:
+  one: "{} has been unauthorized to send news in this channel with ping {last}. :white_check_mark:\nNote: Only the listed role ping is affected!"
+  many: "{} has been unauthorized to send news in this channel with ping {roles} and {last}. :white_check_mark:\nNote: Only the listed role pings are affected!"
+log_news_unauthorized_ping:
+  one: "{} {} has been **unauthorized** to **send news** in {} with ping {last}. :white_check_mark:"
+  many: "{} {} has been **unauthorized** to **send news** in {} with ping {roles} and {last}. :white_check_mark:"
+news_not_authorized: "{} is not authorized to send news in this channel."
+nothing_to_delete_ping: "{} is not allowed to ping any of the given roles in this channel. Nothing changed."
+
+no_news_authorizations: No user / role has been authorized to send news yet.
 news_not_added_no_permissions: >
-  User could not be authorized because I don't have `send_messages` permission in this channel.
+  "{} could not be authorized because I don't have `send_messages` permission in this channel."
 news_you_are_not_authorized: You are not authorized to send news in this channel.
-sent_by: Sent by @{} ({})
-send_message: Now send me the message!
+news_you_are_not_authorized_ping:
+  one: "You are not authorized to send news in this channel with ping {last}."
+  many: "You are not authorized to send news in this channel with pings {roles} and {last}."
+sent_by: "Sent by @{} ({})"
 msg_could_not_be_sent: Message could not be sent.
 msg_sent: "Message has been sent successfully. :white_check_mark:"
+discohook_invalid: Invalid discohook link
+message_not_compliant: Your message is not compliant with Discords limits! Please pay attention to the errors shown by Discohook!

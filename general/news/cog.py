@@ -1,30 +1,30 @@
-from typing import Optional
+import re
+from typing import Optional, Union, List, Dict
 
-from discord import Embed, Forbidden, Guild, HTTPException, Member, Role, TextChannel
+from discord import Embed, Forbidden, HTTPException, Member, Role, TextChannel
 from discord.ext import commands
 from discord.ext.commands import CommandError, Context, UserInputError, guild_only
+from sqlalchemy import and_
 
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import reply
-from PyDrocsid.converter import Color
+from PyDrocsid.command import reply, add_reactions
 from PyDrocsid.database import db, select
+from PyDrocsid.discohook import MessageContent, load_discohook_link, DiscoHookError
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.translations import t
-from PyDrocsid.util import attachment_to_file, read_normal_message
-
+from PyDrocsid.util import RoleListConverter, check_message_send_permissions, attachment_to_file
 from .colors import Colors
 from .models import NewsAuthorization
 from .permissions import NewsPermission
 from ...contributor import Contributor
 from ...pubsub import send_to_changelog
 
-
 tg = t.g
 t = t.news
 
 
 class NewsCog(Cog, name="News"):
-    CONTRIBUTORS = [Contributor.Defelo, Contributor.wolflu]
+    CONTRIBUTORS = [Contributor.Defelo, Contributor.wolflu, Contributor.TNT2k]
 
     @commands.group()
     @guild_only()
@@ -42,110 +42,220 @@ class NewsCog(Cog, name="News"):
         """
         manage authorized users and channels
         """
+        if len(ctx.message.content.lstrip(ctx.prefix).split()) > 2:
+            if ctx.invoked_subcommand is None:
+                raise UserInputError
+            return
 
-        if ctx.invoked_subcommand is None:
-            raise UserInputError
-
-    @news_auth.command(name="list", aliases=["l", "?"])
-    async def news_auth_list(self, ctx: Context):
-        """
-        list authorized users and channels
-        """
-
-        out = []
-        guild: Guild = ctx.guild
-        async for authorization in await db.stream(select(NewsAuthorization)):
-            text_channel: Optional[TextChannel] = guild.get_channel(authorization.channel_id)
-            member: Optional[Member] = guild.get_member(authorization.user_id)
-            if text_channel is None or member is None:
-                await db.delete(authorization)
-                continue
-            line = f":small_orange_diamond: {member.mention} -> {text_channel.mention}"
-            if authorization.notification_role_id is not None:
-                role: Optional[Role] = guild.get_role(authorization.notification_role_id)
-                if role is None:
-                    await db.delete(authorization)
-                    continue
-                line += f" ({role.mention})"
-            out.append(line)
         embed = Embed(title=t.news, colour=Colors.News)
-        if out:
-            embed.description = "\n".join(out)
-        else:
-            embed.colour = Colors.error
+        channels: Dict[TextChannel, Dict[Union[Member, Role], List[Role]]] = {}
+        auth: NewsAuthorization
+        async for auth in await db.stream(select(NewsAuthorization)):
+            source: Optional[Union[Member, Role]] = (ctx.guild.get_member(auth.source_id)
+                                                     or ctx.guild.get_role(auth.source_id))
+            notification_rid: Optional[Role] = ctx.guild.get_role(auth.notification_role_id)
+            channel: Optional[TextChannel] = ctx.guild.get_channel(auth.channel_id)
+            if source is None or channel is None or notification_rid is None and auth.notification_role_id is not None:
+                await db.delete(auth)
+                continue
+            lst = channels.setdefault(channel, {}).setdefault(source, [])
+            if notification_rid:
+                lst.append(notification_rid)
+
+        if not channels:
             embed.description = t.no_news_authorizations
-        await send_long_embed(ctx, embed)
+            embed.colour = Colors.error
+            await reply(ctx, embed=embed)
+            return
+
+        def make_field(auths: Dict[Union[Member, Role], List[Role]]) -> List[str]:
+            out = []
+            for src, targets in sorted(auths.items(), key=lambda a: (isinstance(a[0], Role), a[0].name)):
+                line = f":small_orange_diamond: {src.mention}"
+                if targets:
+                    line += " -> " + ", ".join(role.mention for role in targets)
+                out.append(line)
+            return out
+
+        for channel in sorted(channels, key=lambda x: x.name):
+            embed.add_field(name=channel.mention, value="\n".join(make_field(channels[channel])), inline=False)
+        await send_long_embed(ctx.message, embed)
 
     @news_auth.command(name="add", aliases=["a", "+"])
     @NewsPermission.write.check
-    async def news_auth_add(self, ctx: Context, user: Member, channel: TextChannel, notification_role: Optional[Role]):
+    async def news_auth_add(self, ctx: Context, source: Union[Member, Role], channel: TextChannel, *,
+                            allowed_roles: RoleListConverter = None):
         """
-        authorize a new user to send news to a specific channel
+        authorize a new user / role to send news to a specific channel (and optionally ping specific roles)
+        This is "additive"; you can add more roles later without needing to specify all allowed roles every time
         """
-
-        if await db.exists(select(NewsAuthorization).filter_by(user_id=user.id, channel_id=channel.id)):
-            raise CommandError(t.news_already_authorized)
+        if not allowed_roles:
+            allowed_roles = []
+        # get source as translation string
+        source_type = t.user if isinstance(source, Member) else t.role
+        allowed_roles: List[Role]
+        # if we can not send messages to this channel, abort
         if not channel.permissions_for(channel.guild.me).send_messages:
             raise CommandError(t.news_not_added_no_permissions)
 
-        role_id = notification_role.id if notification_role is not None else None
+        # if we do not allow pings
+        if not allowed_roles:
+            if await db.exists(select(NewsAuthorization).filter_by(source_id=source.id, channel_id=channel.id)):
+                raise CommandError(t.news_already_authorized(source_type))
+            await NewsAuthorization.create(source.id, channel.id, None)
+            embed = Embed(title=t.news, colour=Colors.News, description=t.news_authorized(source_type))
+            await reply(ctx, embed=embed)
+            await send_to_changelog(ctx.guild, t.log_news_authorized(source_type, source.mention, channel.mention))
+            return
 
-        await NewsAuthorization.create(user.id, channel.id, role_id)
-        embed = Embed(title=t.news, colour=Colors.News, description=t.news_authorized)
+        missing_roles = []
+        # check if any of the allowed pings are new
+        for role in allowed_roles:
+            if not await db.exists(select(NewsAuthorization).filter_by(
+                    source_id=source.id, channel_id=channel.id, otification_role_id=role.id)
+            ):
+                missing_roles.append(role)
+
+        # if not, abort
+        if not missing_roles:
+            raise CommandError(t.news_already_authorized_ping(source_type))
+
+        # create missing auths
+        for role in missing_roles:
+            await NewsAuthorization.create(source.id, channel.id, role.id)
+
+        *roles, last = (x.mention for x in missing_roles)
+        roles: list[str]
+        value1 = t.news_authorized_ping(target_type=source_type, roles=", ".join(roles), last=last, cnt=len(roles) + 1)
+        embed = Embed(title=t.news, colour=Colors.News, description=value1)
         await reply(ctx, embed=embed)
-        await send_to_changelog(ctx.guild, t.log_news_authorized(user.mention, channel.mention))
+        value2 = t.log_news_authorized_ping(source.mention, channel.mention, target_type=source_type,
+                                            roles=", ".join(roles), last=last, cnt=len(roles) + 1)
+        await send_to_changelog(ctx.guild, value2)
 
     @news_auth.command(name="remove", aliases=["del", "r", "d", "-"])
     @NewsPermission.write.check
-    async def news_auth_remove(self, ctx: Context, user: Member, channel: TextChannel):
+    async def news_auth_remove(self, ctx: Context, source: Union[Member, Role], channel: TextChannel, *,
+                               allowed_roles: Optional[RoleListConverter]):
         """
-        remove user authorization
+        remove an authorization for a user / role to send news to a specific channel
+        This is "subtractive"; you can remove roles without needing to specify all allowed roles every time
+        If you omit `allowed_pings`, all authorizations for this user / role for this channel will be deleted
+        Otherwise, only authorizations for matching `allowed_roles` will be removed
         """
+        if not allowed_roles:
+            allowed_roles = []
+        allowed_roles: List[Role]
+        source_type = t.user if isinstance(source, Member) else t.role
+        if not allowed_roles:
+            authorization: List[NewsAuthorization] = await db.all(
+                select(NewsAuthorization).filter_by(source_id=source.id, channel_id=channel.id)
+            )
+            if not authorization:
+                raise CommandError(t.news_not_authorized)
+            for auth in authorization:
+                await db.delete(auth)
+            embed = Embed(title=t.news, colour=Colors.News, description=t.news_unauthorized(source_type))
+            await reply(ctx, embed=embed)
+            await send_to_changelog(ctx.guild, t.log_news_unauthorized(source_type, source.mention, channel.mention))
+            return
 
-        authorization: Optional[NewsAuthorization] = await db.first(
-            select(NewsAuthorization).filter_by(user_id=user.id, channel_id=channel.id)
-        )
-        if authorization is None:
-            raise CommandError(t.news_not_authorized)
+        deleted = []
+        for ping in allowed_roles:
+            authorization: Optional[NewsAuthorization] = await db.first(
+                select(NewsAuthorization).filter_by(source_id=source.id, channel_id=channel.id,
+                                                    notification_role_id=ping.id)
+            )
+            if authorization:
+                deleted.append(ping)
+                await db.delete(authorization)
+        if not deleted:
+            raise CommandError(t.nothing_to_delete_ping(source_type))
 
-        await db.delete(authorization)
-        embed = Embed(title=t.news, colour=Colors.News, description=t.news_unauthorized)
+        *roles, last = (x.mention for x in deleted)
+        roles: list[str]
+        value1 = t.news_unauthorized_ping(target_type=source_type, roles=", ".join(roles), last=last,
+                                          cnt=len(roles) + 1)
+        embed = Embed(title=t.news, colour=Colors.News, description=value1)
         await reply(ctx, embed=embed)
-        await send_to_changelog(ctx.guild, t.log_news_unauthorized(user.mention, channel.mention))
+        value2 = t.log_news_unauthorized_ping(source.mention, channel.mention, target_type=source_type,
+                                              roles=", ".join(roles), last=last,
+                                              cnt=len(roles) + 1)
+        await send_to_changelog(ctx.guild, value2)
 
     @news.command(name="send", aliases=["s"])
     async def news_send(
-        self, ctx: Context, channel: TextChannel, color: Optional[Color] = None, *, message: Optional[str]
-    ):
+            self, ctx: Context, channel: TextChannel, *, discohook_url: str):
         """
         send a news message
+        - generate the discohook link using https://discohook.org (use "Share Message" at the top of the page to get short link)
+        - add attachments to this command (not the message on discohook) to attach them to the sent message
+
+        the `<>` below are part of the pings, do not remove them!
+        - to ping using discohook (works in discord as well), use the templates below
+        - roles: `<@&ROLE_ID>`
+        - channels: `<#CHANNEL_ID>`
+        - users: `<@!USER_ID>`
+        - if you want to create a notification, the ping needs to be in a normal message, not within an embed!
+        - you can create pings in embeds, if you do not want to notify anyone
         """
 
-        authorization: Optional[NewsAuthorization] = await db.first(
-            select(NewsAuthorization).filter_by(user_id=ctx.author.id, channel_id=channel.id)
+        try:
+            messages: list[MessageContent] = [
+                msg for msg in await load_discohook_link(discohook_url) if not msg.is_empty
+            ]
+        except DiscoHookError:
+            raise CommandError(t.discohook_invalid)
+
+        if not messages:
+            raise CommandError(t.discohook_empty)
+
+        authorizations: list[NewsAuthorization] = await db.all(
+            select(NewsAuthorization).filter(
+                and_(
+                    NewsAuthorization.source_id.in_([role.id for role in ctx.author.roles] + [ctx.author.id]),
+                    NewsAuthorization.channel_id == channel.id
+                )
+            )
         )
-        if authorization is None:
+
+        if not authorizations:
             raise CommandError(t.news_you_are_not_authorized)
 
-        if message is None:
-            message = ""
+        pings: dict[int, Role] = {}
+        for message in messages:
+            for match in re.findall(r"<@&(\d*?)>", message.content):
+                if match.isnumeric() and (role := ctx.guild.get_role(int(match))):
+                    pings.update({role.id: role})
+        for auth in authorizations:
+            if auth.notification_role_id:
+                pings.pop(auth.notification_role_id, None)
+        if pings:
+            *roles, last = (x.mention for x in pings.values())
+            raise CommandError(t.news_you_are_not_authorized_ping(roles=", ".join(roles), last=last,
+                                                                  cnt=len(roles) + 1))
 
-        embed = Embed(title=t.news, colour=Colors.News, description="")
-        if not message and not ctx.message.attachments:
-            embed.description = t.send_message
-            await reply(ctx, embed=embed)
-            message, files = await read_normal_message(self.bot, ctx.channel, ctx.author)
-        else:
-            files = [await attachment_to_file(attachment) for attachment in ctx.message.attachments]
+        check_message_send_permissions(channel, check_embed=any(m.embeds for m in messages))
+
+        try:
+            for message in messages:
+                content: str | None = message.content
+                await channel.send(content=content, embeds=message.embeds)
+            if ctx.message.attachments:
+                await channel.send(files=[await attachment_to_file(attachment) for attachment in ctx.message.attachments])
+        except (HTTPException, Forbidden) as e:
+            if e.status == 400 and "Invalid Form" in e.text:
+                raise CommandError(t.message_not_compliant)
+            raise CommandError(t.msg_could_not_be_sent)
+
+        await add_reactions(ctx.message, "white_check_mark")
+
+        """
+        files = [await attachment_to_file(attachment) for attachment in ctx.message.attachments]
 
         content = ""
         send_embed = Embed(title=t.news, description=message, colour=Colors.News)
         send_embed.set_footer(text=t.sent_by(ctx.author, ctx.author.id), icon_url=ctx.author.display_avatar.url)
-
-        if authorization.notification_role_id is not None:
-            role: Optional[Role] = ctx.guild.get_role(authorization.notification_role_id)
-            if role is not None:
-                content = role.mention
 
         send_embed.colour = color if color is not None else Colors.News
 
@@ -158,4 +268,4 @@ class NewsCog(Cog, name="News"):
             raise CommandError(t.msg_could_not_be_sent)
         else:
             embed.description = t.msg_sent
-            await reply(ctx, embed=embed)
+            await reply(ctx, embed=embed)"""
