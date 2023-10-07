@@ -25,6 +25,51 @@ tg = t.g
 t = t.news
 
 
+async def list_auth(ctx: Context, member: Optional[Member] = None):
+    embed = Embed(title=t.news, colour=Colors.News)
+    channels: Dict[TextChannel, Dict[Union[Member, Role], List[Role]]] = {}
+    auth: NewsAuthorization
+    if member:
+        authorizations = db.stream(
+            select(NewsAuthorization).filter(
+                NewsAuthorization.source_id.in_([role.id for role in member.roles] + [member.id])
+            )
+        )
+    else:
+        authorizations = db.stream(select(NewsAuthorization))
+    async for auth in await authorizations:
+        source: Optional[Union[Member, Role]] = ctx.guild.get_member(auth.source_id) or ctx.guild.get_role(
+            auth.source_id
+        )
+        notification_rid: Optional[Role] = ctx.guild.get_role(auth.notification_role_id)
+        channel: Optional[TextChannel] = ctx.guild.get_channel(auth.channel_id)
+        if source is None or channel is None or notification_rid is None and auth.notification_role_id is not None:
+            await db.delete(auth)
+            continue
+        lst = channels.setdefault(channel, {}).setdefault(source, [])
+        if notification_rid:
+            lst.append(notification_rid)
+
+    if not channels:
+        embed.description = t.no_news_authorizations if not member else t.single_no_news_authorizations
+        embed.colour = Colors.error
+        await reply(ctx, embed=embed)
+        return
+
+    def make_field(auths: Dict[Union[Member, Role], List[Role]]) -> List[str]:
+        out = []
+        for src, targets in sorted(auths.items(), key=lambda a: (isinstance(a[0], Role), a[0].name)):
+            line = f":small_orange_diamond: {src.mention}"
+            if targets:
+                line += " -> " + ", ".join(target.mention for target in targets)
+            out.append(line)
+        return out
+
+    for channel in sorted(channels, key=lambda x: x.name):
+        embed.add_field(name=channel.mention, value="\n".join(make_field(channels[channel])), inline=False)
+    await send_long_embed(ctx.message, embed)
+
+
 class NewsCog(Cog, name="News"):
     CONTRIBUTORS = [Contributor.Defelo, Contributor.wolflu, Contributor.TNT2k]
 
@@ -48,41 +93,17 @@ class NewsCog(Cog, name="News"):
             if ctx.invoked_subcommand is None:
                 raise UserInputError
             return
+        await list_auth(ctx)
 
-        embed = Embed(title=t.news, colour=Colors.News)
-        channels: Dict[TextChannel, Dict[Union[Member, Role], List[Role]]] = {}
-        auth: NewsAuthorization
-        async for auth in await db.stream(select(NewsAuthorization)):
-            source: Optional[Union[Member, Role]] = ctx.guild.get_member(auth.source_id) or ctx.guild.get_role(
-                auth.source_id
-            )
-            notification_rid: Optional[Role] = ctx.guild.get_role(auth.notification_role_id)
-            channel: Optional[TextChannel] = ctx.guild.get_channel(auth.channel_id)
-            if source is None or channel is None or notification_rid is None and auth.notification_role_id is not None:
-                await db.delete(auth)
-                continue
-            lst = channels.setdefault(channel, {}).setdefault(source, [])
-            if notification_rid:
-                lst.append(notification_rid)
+    @news_auth.command(name="own")
+    @NewsPermission.view_own.check
+    async def news_auth_own(self, ctx: Context):
+        await list_auth(ctx, ctx.author)
 
-        if not channels:
-            embed.description = t.no_news_authorizations
-            embed.colour = Colors.error
-            await reply(ctx, embed=embed)
-            return
-
-        def make_field(auths: Dict[Union[Member, Role], List[Role]]) -> List[str]:
-            out = []
-            for src, targets in sorted(auths.items(), key=lambda a: (isinstance(a[0], Role), a[0].name)):
-                line = f":small_orange_diamond: {src.mention}"
-                if targets:
-                    line += " -> " + ", ".join(role.mention for role in targets)
-                out.append(line)
-            return out
-
-        for channel in sorted(channels, key=lambda x: x.name):
-            embed.add_field(name=channel.mention, value="\n".join(make_field(channels[channel])), inline=False)
-        await send_long_embed(ctx.message, embed)
+    @news_auth.command(name="other")
+    @NewsPermission.view_other.check
+    async def news_auth_other(self, ctx: Context, member: Member):
+        await list_auth(ctx, member)
 
     @news_auth.command(name="add", aliases=["a", "+"])
     @NewsPermission.write.check

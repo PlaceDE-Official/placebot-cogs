@@ -11,3 +11,5 @@ class NewsPermission(BasePermission):
 
     read = auto()
     write = auto()
+    view_own = auto()
+    view_other = auto()

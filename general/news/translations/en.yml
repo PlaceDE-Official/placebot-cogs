@@ -1,6 +1,8 @@
 permissions:
   read: read news authorizations
   write: write news authorizations
+  view_own: Shows own news authorizations
+  view_other: Shows others news authorizations
 
 user: User
 role: Role
@@ -29,6 +31,7 @@ news_not_authorized: "{} is not authorized to send news in this channel."
 nothing_to_delete_ping: "{} is not allowed to ping any of the given roles in this channel. Nothing changed."
 
 no_news_authorizations: No user / role has been authorized to send news yet.
+single_no_news_authorizations: This user (and their roles) have no authorizations to send news yet.
 news_not_added_no_permissions: >
   "{} could not be authorized because I don't have `send_messages` permission in this channel."
 news_you_are_not_authorized: You are not authorized to send news in this channel.
