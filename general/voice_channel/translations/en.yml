@@ -5,6 +5,9 @@ permissions:
   dyn_rename: rename a dynamic voice channel
   link_read: read voice channel links
   link_write: write voice channel links
+  dyn_whitelist_write: add or remove names from the custom whitelist for dynamic vcs
+  dyn_whitelist_read: show the custom whitelist for dynamic vcs
+  dyn_whitelist_check: check if a name is whitelisted for dynamic vcs
 
 commands:
   voice: manage voice channels
@@ -24,6 +27,9 @@ commands:
   voice_link_add: link a voice channel with a role
   voice_link_remove: delete the link between a voice channel and a role
   help: show a list of voice channel commands
+  disable_ping: disable join request pings for this channel
+  enable_ping: enable join request pings for this channel
+  join_request: send a join request for a voice channel
 
 no_links_created: No links have been created yet.
 link_already_exists: Link already exists.
@@ -59,11 +65,14 @@ dyn_voice_help_content: |
   :x: `{prefix}vc remove <member>` - kick and remove a member from this voice channel
   :label: `{prefix}vc rename [<name>]` - rename this voice channel
   :tools: `{prefix}vc owner <member>` - transfer ownership of this voice channel
+  :no_bell: `{prefix}vc no_ping` - disable pings for join requests
+  :bell: `{prefix}vc ping` - enable pings for join requests
   :information_source: `{prefix}vc info [<channel>]` - show information about a voice channel
   :grey_question: `{prefix}vc help` - show this embed
   Note that these commands can be used in any text channel.
 not_in_voice: You have to be in a dynamic voice channel to use this command.
 user_not_in_voice: User is not in a dynamic voice channel.
+not_a_dynamic_channel: The given channel is not a dynamic voice channel.
 private_voice_owner_required: You are not the owner of this voice channel.
 user_added: ":white_check_mark: {} has been added to this voice channel."
 cannot_add_user: "{} could not be added."
@@ -82,7 +91,11 @@ hidden: ":man_detective: {} has hidden this voice channel."
 visible: ":eye: {} has made this voice channel visible again, but it is still locked."
 already_unlocked: This voice channel is already unlocked.
 unlocked: ":unlock: {} has unlocked this voice channel."
-channel_not_locked: This voice channel is not locked.
+pings_disabled: ":no_bell: {} has disabled join request pings for this voice channel."
+pings_enabled: ":bell: {} has enabled join request pings for this voice channel."
+pings_already_active: The join request pings in this channel are already active.
+pings_already_inactive: The join request pings in this channel are already inactive.
+channel_not_locked: This voice channel is not locked, everyone can join freely.
 not_hidden: This voice channel is not hidden.
 could_not_overwrite_permissions: Could not modify permission overwrites in {}.
 no_text_channel: "{} has no associated text channel."
@@ -105,6 +118,12 @@ rename_description: A voice channel with this name already exists. Do you want t
 canceled: ":x: Canceled"
 confirmed: "Confirmed :white_check_mark:"
 no_custom_name: You are not allowed to set a custom channel name! Omit the `name` parameter to choose a random name or pick a name from [these lists](https://github.com/PlaceDE-Official/placebot-cogs/tree/develop/general/voice_channel/names)!
+join_request: "Hey {}, {} wants to join your voice channel.\nYou have 2 minutes to accept, or it will be cancelled automatically."
+already_in_channel: You are already in that channel.
+already_whitelisted: You are already whitelisted in that channel.
+request_approved: Your request was approved, you can now join.
+request_denied: Your request was denied (or the timeout was reached), sorry...
+too_many_requests: Sorry, but you can only have one request active at the same time. Requests will time out after 2 minutes.
 
 buttons:
   info: Info
@@ -113,6 +132,8 @@ buttons:
   unlock: Unlock
   hide: Hide
   show: Unhide
+  no_ping: Disable join request pings
+  ping: Enable join request pings
 
 voice_info: "Voice Channel Information"
 voice_owner: "Owner"
@@ -130,3 +151,8 @@ state:
   unlocked: ":unlock: Unlocked"
   locked: ":lock: Locked"
   hidden: ":man_detective: Hidden"
+
+voice_ping: "Join request pings"
+ping:
+  no_ping: ":no_bell: Disabled"
+  ping: ":bell: Enabled"

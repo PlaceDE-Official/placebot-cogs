@@ -255,7 +255,7 @@ class NewsCog(Cog, name="News"):
                 and_(
                     NewsAuthorization.source_id.in_([role.id for role in ctx.author.roles] + [ctx.author.id]),
                     NewsAuthorization.channel_id == channel.id,
-                    )
+                )
             )
         )
 
@@ -321,7 +321,7 @@ class NewsCog(Cog, name="News"):
 
         authorizations: list[NewsAuthorization] = await db.all(
             select(NewsAuthorization).filter(
-                NewsAuthorization.source_id.in_([role.id for role in ctx.author.roles] + [ctx.author.id]),
+                NewsAuthorization.source_id.in_([role.id for role in ctx.author.roles] + [ctx.author.id])
             )
         )
 

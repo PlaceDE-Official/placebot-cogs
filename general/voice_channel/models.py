@@ -32,6 +32,7 @@ class DynChannel(Base):
     channel_id: Union[Column, int] = Column(BigInteger, primary_key=True, unique=True)
     text_id: Union[Column, int] = Column(BigInteger)
     locked: Union[Column, bool] = Column(Boolean)
+    no_ping: Union[Column, bool] = Column(Boolean)
     group_id: Union[Column, str] = Column(String(36), ForeignKey("dynvoice_group.id"))
     group: DynGroup = relationship("DynGroup", back_populates="channels")
     owner_id: Union[Column, str] = Column(String(36))
@@ -42,7 +43,7 @@ class DynChannel(Base):
 
     @staticmethod
     async def create(channel_id: int, group_id: int) -> DynChannel:
-        channel = DynChannel(channel_id=channel_id, text_id=None, locked=False, group_id=group_id)
+        channel = DynChannel(channel_id=channel_id, text_id=None, locked=False, no_ping=False, group_id=group_id)
         await db.add(channel)
         return channel
 
