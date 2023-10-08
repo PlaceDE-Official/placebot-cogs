@@ -1,7 +1,7 @@
 import re
 from typing import Dict, List, Optional, Union
 
-from discord import Embed, Forbidden, HTTPException, Member, Role, TextChannel
+from discord import AllowedMentions, Embed, Forbidden, HTTPException, Member, Role, TextChannel
 from discord.ext import commands
 from discord.ext.commands import CommandError, Context, UserInputError, guild_only
 from sqlalchemy import and_
@@ -250,6 +250,18 @@ class NewsCog(Cog, name="News"):
         - you can create pings in embeds, if you do not want to notify anyone
         """
 
+        authorizations: list[NewsAuthorization] = await db.all(
+            select(NewsAuthorization).filter(
+                and_(
+                    NewsAuthorization.source_id.in_([role.id for role in ctx.author.roles] + [ctx.author.id]),
+                    NewsAuthorization.channel_id == channel.id,
+                    )
+            )
+        )
+
+        if not authorizations:
+            raise CommandError(t.news_you_are_not_authorized_channel)
+
         try:
             messages: list[MessageContent] = [
                 msg for msg in await load_discohook_link(discohook_url) if not msg.is_empty
@@ -259,18 +271,6 @@ class NewsCog(Cog, name="News"):
 
         if not messages:
             raise CommandError(t.discohook_empty)
-
-        authorizations: list[NewsAuthorization] = await db.all(
-            select(NewsAuthorization).filter(
-                and_(
-                    NewsAuthorization.source_id.in_([role.id for role in ctx.author.roles] + [ctx.author.id]),
-                    NewsAuthorization.channel_id == channel.id,
-                )
-            )
-        )
-
-        if not authorizations:
-            raise CommandError(t.news_you_are_not_authorized)
 
         pings: dict[int, Role] = {}
         for message in messages:
@@ -300,6 +300,59 @@ class NewsCog(Cog, name="News"):
             if e.status == 400 and "Invalid Form" in e.text:
                 raise CommandError(t.message_not_compliant)
             raise CommandError(t.msg_could_not_be_sent)
+
+        await add_reactions(ctx.message, "white_check_mark")
+
+    @news.command(name="test", aliases=["t"])
+    async def news_test(self, ctx: Context, *, discohook_url: str):
+        """
+        tests a news message (replies in the channel in which the command was sent, no one is pinged)
+        - generate the discohook link using https://discohook.org (use "Share Message" at the top of the page to get short link)
+        - add attachments to this command (not the message on discohook) to attach them to the sent message
+
+        the `<>` below are part of the pings, do not remove them!
+        - to ping using discohook (works in discord as well), use the templates below
+        - roles: `<@&ROLE_ID>`
+        - channels: `<#CHANNEL_ID>`
+        - users: `<@!USER_ID>`
+        - if you want to create a notification, the ping needs to be in a normal message, not within an embed!
+        - you can create pings in embeds, if you do not want to notify anyone
+        """
+
+        authorizations: list[NewsAuthorization] = await db.all(
+            select(NewsAuthorization).filter(
+                NewsAuthorization.source_id.in_([role.id for role in ctx.author.roles] + [ctx.author.id]),
+            )
+        )
+
+        if not authorizations:
+            raise CommandError(t.news_you_are_not_authorized)
+
+        try:
+            messages: list[MessageContent] = [
+                msg for msg in await load_discohook_link(discohook_url) if not msg.is_empty
+            ]
+        except DiscoHookError:
+            raise CommandError(t.discohook_invalid)
+
+        if not messages:
+            raise CommandError(t.discohook_empty)
+
+        check_message_send_permissions(ctx.channel, check_embed=any(m.embeds for m in messages))
+
+        try:
+            for message in messages:
+                content: str | None = message.content
+                await ctx.author.send(content=content, embeds=message.embeds, allowed_mentions=AllowedMentions.none())
+            if ctx.message.attachments:
+                await ctx.author.send(
+                    files=[await attachment_to_file(attachment) for attachment in ctx.message.attachments],
+                    allowed_mentions=AllowedMentions.none(),
+                )
+        except (HTTPException, Forbidden) as e:
+            if e.status == 400 and "Invalid Form" in e.text:
+                raise CommandError(t.message_not_compliant)
+            raise CommandError(t.msg_could_not_be_sent_dm)
 
         await add_reactions(ctx.message, "white_check_mark")
 
