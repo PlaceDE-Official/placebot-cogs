@@ -3,7 +3,18 @@ from datetime import timedelta
 from io import StringIO
 from typing import Optional, Union
 
-from discord import Embed, File, Forbidden, Guild, Member, Message, RawMessageDeleteEvent, TextChannel, User
+from discord import (
+    CategoryChannel,
+    Embed,
+    File,
+    Forbidden,
+    Guild,
+    Member,
+    Message,
+    RawMessageDeleteEvent,
+    TextChannel,
+    User,
+)
 from discord.ext import commands, tasks
 from discord.ext.commands import Command, CommandError, Context, Group, UserInputError, guild_only
 from discord.utils import format_dt, snowflake_time, utcnow
@@ -188,6 +199,9 @@ class LoggingCog(Cog, name="Logging"):
             return
         if await LogExclude.exists(after.channel.id):
             return
+        if await LogExclude.exists(after.channel.category_id):
+            return
+
         await redis.delete(key)
         embed = Embed(title=t.message_edited, color=Colors.edit)
         embed.set_author(name=str(before.author), icon_url=before.author.display_avatar.url)
@@ -219,6 +233,8 @@ class LoggingCog(Cog, name="Logging"):
             return
         if await LogExclude.exists(message.channel.id):
             return
+        if await LogExclude.exists(message.channel.category_id):
+            return
 
         embed = Embed(title=t.message_edited, color=Colors.edit)
         embed.add_field(name=t.channel, value=channel.mention)
@@ -249,6 +265,8 @@ class LoggingCog(Cog, name="Logging"):
         if await is_logging_channel(message.channel):
             return
         if await LogExclude.exists(message.channel.id):
+            return
+        if await LogExclude.exists(message.channel.category_id):
             return
 
         embed = Embed(title=t.message_deleted, color=Colors.delete)
@@ -286,6 +304,9 @@ class LoggingCog(Cog, name="Logging"):
             return
         await redis.delete(f"little_diff_message_edit:{event.message_id}")
         if await LogExclude.exists(event.channel_id):
+            return
+        category = self.bot.guilds[0].get_channel(event.channel_id)
+        if category and await LogExclude.exists(category.category_id):
             return
 
         embed = Embed(title=t.message_deleted, color=Colors.delete)
@@ -429,7 +450,7 @@ class LoggingCog(Cog, name="Logging"):
     @logging_exclude.command(name="add", aliases=["a", "+"])
     @LoggingPermission.write.check
     @docs(t.commands.exclude_add)
-    async def logging_exclude_add(self, ctx: Context, channel: TextChannel):
+    async def logging_exclude_add(self, ctx: Context, channel: Union[TextChannel, CategoryChannel]):
         if await LogExclude.exists(channel.id):
             raise CommandError(t.already_excluded)
 
@@ -441,7 +462,7 @@ class LoggingCog(Cog, name="Logging"):
     @logging_exclude.command(name="remove", aliases=["r", "del", "d", "-"])
     @LoggingPermission.write.check
     @docs(t.commands.exclude_remove)
-    async def logging_exclude_remove(self, ctx: Context, channel: TextChannel):
+    async def logging_exclude_remove(self, ctx: Context, channel: Union[TextChannel, CategoryChannel]):
         if not await LogExclude.exists(channel.id):
             raise CommandError(t.not_excluded)
 
