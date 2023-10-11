@@ -8,14 +8,20 @@ permissions:
   dyn_whitelist_write: add or remove names from the custom whitelist for dynamic vcs
   dyn_whitelist_read: show the custom whitelist for dynamic vcs
   dyn_whitelist_check: check if a name is whitelisted for dynamic vcs
+  dyn_whitelist_check_parts: split an allowed name into its allowed parts
+  dyn_whitelist_list: list all names on the custom whitelist for dynamic vcs
 
 commands:
   voice: manage voice channels
   voice_dynamic: manage dynamic voice channels
   voice_dynamic_add: create a new dynamic voice channel group
   voice_dynamic_remove: remove a dynamic voice channel group
+  voice_dynamic_edit: edit a dynamic voice channel group
+  edit_default_text_channel: enable or disable the default text channel for a group
+  set_text_channel_default_mode: set if this group has text channels by default enabled
   voice_info: show information about a given dynamic voice channel
   voice_rename: rename a dynamic voice channel
+  voice_create_text_channel: create a text channel for this voice channel if it has none
   voice_owner: transfer voice channel ownership
   voice_lock: lock a dynamic voice channel
   voice_hide: hide a dynamic voice channel
@@ -29,7 +35,7 @@ commands:
   help: show a list of voice channel commands
   disable_ping: disable join request pings for this channel
   enable_ping: enable join request pings for this channel
-  join_request: send a join request for a voice channel
+  whitelist: manage custom whitelisted names
 
 no_links_created: No links have been created yet.
 link_already_exists: Link already exists.
@@ -44,13 +50,18 @@ could_not_add_roles: Could not add role {} to {}.
 dyn_group_already_exists: This channel is already part of an existing voice channel group.
 invalid_user_role: The role {} does not have `view_channel` and `connect` permissions in this voice channel. Please either grant this role the required permissions in this channel or specify a (different) role which should have access to this voice channel group.
 dyn_group_created: "Dynamic voice channel group has been created successfully. :white_check_mark:"
-log_dyn_group_created: "A new **dynamic voice channel group** has been **created**."
+log_dyn_group_created: "A new **dynamic voice channel group** has been **created**.\n{}"
+log_dyn_group_edited: "**Dynamic voice channel group** has been **edited**.\n{}"
+default_text_channels_active: Default text channels are **active**.
+default_text_channels_not_active: Default text channels are **not active**.
 dyn_group_not_found: This channel is not part of any voice channel group.
 cnt_channels:
-  one: "{cnt} channel"
-  many: "{cnt} channels"
+  one: "{cnt} channel {}"
+  many: "{cnt} channels {}"
+memo_meaning: "{} indicates if this group has associated text channels by default."
 no_dyn_group: No dynamic voice channel groups have been created yet.
 dyn_group_removed: "Dynamic voice channel group has been removed successfully. :white_check_mark:"
+dyn_group_edited: "Dynamic voice channel group has been edited successfully. :white_check_mark:"
 log_dyn_group_removed: "A **dynamic voice channel group** has been **removed**."
 dyn_voice_created: ":sparkles: Channel has been created by {}."
 dyn_voice_joined: ":tada: {} joined this channel."
@@ -64,9 +75,11 @@ dyn_voice_help_content: |
   :white_check_mark: `{prefix}vc add <member>` - add a member to this voice channel
   :x: `{prefix}vc remove <member>` - kick and remove a member from this voice channel
   :label: `{prefix}vc rename [<name>]` - rename this voice channel
-  :tools: `{prefix}vc owner <member>` - transfer ownership of this voice channel
+  :memo: `{prefix}vc create_text_channel` - create a text channel for this voice chat
+  :tools: `{prefix}vc owner <member>` - transfer ownership of your voice channel
   :no_bell: `{prefix}vc no_ping` - disable pings for join requests
   :bell: `{prefix}vc ping` - enable pings for join requests
+  :postal_horn: `{prefix}vc join_request <channel>` - request permission to join a locked voice channel 
   :information_source: `{prefix}vc info [<channel>]` - show information about a voice channel
   :grey_question: `{prefix}vc help` - show this embed
   Note that these commands can be used in any text channel.
@@ -98,12 +111,12 @@ pings_already_inactive: The join request pings in this channel are already inact
 channel_not_locked: This voice channel is not locked, everyone can join freely.
 not_hidden: This voice channel is not hidden.
 could_not_overwrite_permissions: Could not modify permission overwrites in {}.
-no_text_channel: "{} has no associated text channel."
 could_not_send_voice_msg: Could not send message to {}.
 could_not_kick: Could not kick {} out of {}.
 text_channel_for: Text Channel for {}
-could_not_create_text_channel: Could not create text channel for {}.
-could_not_create_voice_channel: Could not create new voice channel.
+could_not_create_text_channel: Could not create text channel for {}.{}
+category_full: "\nThe category is full."
+could_not_create_voice_channel: Could not create new dynamic voice channel.{}
 could_not_delete_channel: Could not delete {}.
 could_not_add_reactions: Could not add control reactions to [this message]({}) in {}.
 could_not_clear_reactions: Could not remove control reactions from [this message]({}) in {}.
@@ -117,13 +130,51 @@ rename_confirmation: Rename this Voice Channel?
 rename_description: A voice channel with this name already exists. Do you want to rename this voice channel anyway?
 canceled: ":x: Canceled"
 confirmed: "Confirmed :white_check_mark:"
-no_custom_name: You are not allowed to set a custom channel name! Omit the `name` parameter to choose a random name or pick a name from [these lists](https://github.com/PlaceDE-Official/placebot-cogs/tree/develop/general/voice_channel/names)!
+no_custom_name: |
+  You are not allowed to set a custom channel name! Omit the `name` parameter to choose a random name or construct a name from [these lists](https://github.com/PlaceDE-Official/placebot-cogs/tree/develop/general/voice_channel/names) and the custom list of this server (you can view it using `{prefix}vc wl list`)!
+  You might need to separate the parts by whitespaces.
+  If you want to check a custom name against the lists, use `{prefix}vc wl check`.
 join_request: "Hey {}, {} wants to join your voice channel.\nYou have 2 minutes to accept, or it will be cancelled automatically."
 already_in_channel: You are already in that channel.
 already_whitelisted: You are already whitelisted in that channel.
 request_approved: Your request was approved, you can now join.
 request_denied: Your request was denied (or the timeout was reached), sorry...
 too_many_requests: Sorry, but you can only have one request active at the same time. Requests will time out after 2 minutes.
+name_no_matches: |
+  The given name is not whitelisted.
+  It can not be constructed using any combination of whitelisted phrases.
+  
+  Use `{prefix}vc wl l` to show phrases which were whitelisted by the team.
+  Additional usable names can be found [here](https://github.com/PlaceDE-Official/placebot-cogs/tree/develop/general/voice_channel/names).
+name_matches: "The given name is whitelisted.\nNevertheless, you might be required to separate the used phrases by whitespaces."
+name_matches_parts:
+  one: "The given name is whitelisted.\nNevertheless, you might be required to separate the used phrases by whitespaces.\n\nIt can be constructed using the following combination of whitelisted phrases:"
+  many: "The given name is whitelisted.\nNevertheless, you might be required to separate the used phrases by whitespaces.\n\nIt can be constructed using any of the following combinations of whitelisted phrases:"
+parts_footer_custom: "If \"custom\" ist the first part of one of the above pairs, the term is from the server whitelist -> \"{prefix}vc wl\"."
+name_match_combination: "Combination {}:"
+phrase_exists: The given phrase is already whitelisted.
+phrase_whitelisted: "{} was added to the whitelisted names for dynamic voice channels."
+log_phrase_whitelisted: "{} was **added** to the **naming whitelist** for **dynamic voice channels**."
+phrase_not_existing: The given phrase is not whitelisted.
+phrase_whitelist_removed: "{} was removed from the whitelisted names for dynamic voice channels."
+log_phrase_whitelist_removed: "{} was **removed** from the **naming whitelist** for **dynamic voice channels**."
+phrase_too_long: A phrase can not be longer thant 25 characters.
+phrases_list: "Separately allowed phrases on this server:\n{}"
+phrases_list_footer: "Additional usable names can be found [here](https://github.com/PlaceDE-Official/placebot-cogs/tree/develop/general/voice_channel/names)."
+no_phrases_allowed: The are no phrases allowed separately for this server.
+whitespaces_now_required: "Whitespaces as separators are now required. :white_check_mark:"
+log_whitespaces_now_required: "Whitespaces as separators are from now on **required**."
+whitespaces_no_longer_required: "Whitespaces as separators are no longer required. :white_check_mark:"
+log_whitespaces_no_longer_required: "Whitespaces as separators are from now on **not required**."
+text_channel_exists: "This voice channel already has an assigned text channel: {}"
+warning: "Warning"
+channel_readability_warning: |
+  - The text channel built into this voice channel is viewable and readable by any user, if they can see the voice channel.
+  - To hide this text channel, you need to lock or hide the voice channel.
+  
+  The extra text channel (if existing) is only viewable and readable for a user,
+  - while this user is in the matching voice channel or
+  - if this user is whitelisted for that voice channel.
 
 buttons:
   info: Info

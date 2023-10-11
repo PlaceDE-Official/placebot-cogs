@@ -18,3 +18,5 @@ class VoiceChannelPermission(BasePermission):
     dyn_whitelist_write = auto()
     dyn_whitelist_read = auto()
     dyn_whitelist_check = auto()
+    dyn_whitelist_check_parts = auto()
+    dyn_whitelist_list = auto()

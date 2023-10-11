@@ -16,11 +16,12 @@ class DynGroup(Base):
 
     id: Union[Column, str] = Column(String(36), primary_key=True, unique=True)
     user_role: Union[Column, int] = Column(BigInteger)
+    text_channel_by_default: Union[Column, bool] = Column(Boolean, default=False, nullable=False)
     channels: list[DynChannel] = relationship("DynChannel", back_populates="group", cascade="all, delete")
 
     @staticmethod
-    async def create(channel_id: int, user_role: int) -> DynGroup:
-        group = DynGroup(id=str(uuid4()), user_role=user_role)
+    async def create(channel_id: int, user_role: int, text_channel_by_default: bool) -> DynGroup:
+        group = DynGroup(id=str(uuid4()), user_role=user_role, text_channel_by_default=text_channel_by_default)
         group.channels.append(await DynChannel.create(channel_id, group.id))
         await db.add(group)
         return group
@@ -79,3 +80,15 @@ class RoleVoiceLink(Base):
         link = RoleVoiceLink(role=role, voice_channel=voice_channel)
         await db.add(link)
         return link
+
+
+class AllowedChannelName(Base):
+    __tablename__ = "voice_allowed_name"
+
+    name: Union[Column, str] = Column(String(36), primary_key=True)
+
+    @staticmethod
+    async def create(name: str) -> AllowedChannelName:
+        name = AllowedChannelName(name=name)
+        await db.add(name)
+        return name
