@@ -844,7 +844,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                     await text_channel.set_permissions(member, overwrite=None)
                 except Forbidden:
                     await send_alert(voice_channel.guild, t.could_not_overwrite_permissions(text_channel.mention))
-            await self.send_voice_msg(dyn_channel, t.voice_channel, t.dyn_voice_left(member.mention))
+        await self.send_voice_msg(dyn_channel, t.voice_channel, t.dyn_voice_left(member.mention))
 
         owner: DynChannelMember | None = await db.get(DynChannelMember, id=dyn_channel.owner_id)
         if owner and owner.member_id == member.id or dyn_channel.owner_override == member.id:
