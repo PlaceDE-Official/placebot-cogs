@@ -1597,7 +1597,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                     name=t.name_match_combination(i + 1),
                     value="\n".join(map(lambda x: f"{x[0]}: {escape_codeblock(x[1])}", combination)),
                 )
-            await send_long_embed(ctx, embed)
+            await send_long_embed(ctx, embed, paginate=True, repeat_footer=True, repeat_title=True)
 
     @whitelist.command(name="list", aliases=["l", "s"])
     @VoiceChannelPermission.dyn_whitelist_list.check
