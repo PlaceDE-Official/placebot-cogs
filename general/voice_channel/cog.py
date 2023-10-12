@@ -1611,7 +1611,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         embed = Embed(
             title=t.voice_channel,
             colour=Colors.Voice,
-            description=t.phrases_list(", ".join(map(escape_codeblock, self.custom_names)))
+            description=t.phrases_list(", ".join(map(escape_codeblock, sorted(self.custom_names))))
             if self.custom_names
             else t.no_phrases_allowed,
         )
