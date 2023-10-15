@@ -7,12 +7,12 @@ from discord.ext.commands import CommandError, Context, UserInputError, guild_on
 from sqlalchemy import and_
 
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import add_reactions, reply
+from PyDrocsid.command import add_reactions, optional_permissions, reply
 from PyDrocsid.database import db, select
 from PyDrocsid.discohook import DiscoHookError, MessageContent, load_discohook_link
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.translations import t
-from PyDrocsid.util import RoleListConverter, attachment_to_file, check_message_send_permissions
+from PyDrocsid.util import ZERO_WIDTH_WHITESPACE, RoleListConverter, attachment_to_file, check_message_send_permissions
 
 from .colors import Colors
 from .models import NewsAuthorization
@@ -84,7 +84,7 @@ class NewsCog(Cog, name="News"):
             raise UserInputError
 
     @news.group(name="auth", aliases=["a"])
-    @NewsPermission.read.check
+    @optional_permissions(NewsPermission.read)
     async def news_auth(self, ctx: Context):
         """
         manage authorized users and channels
@@ -93,6 +93,9 @@ class NewsCog(Cog, name="News"):
             if ctx.invoked_subcommand is None:
                 raise UserInputError
             return
+
+        if not await NewsPermission.read.check_permissions(ctx.author):
+            raise CommandError(tg.not_allowed)
         await list_auth(ctx)
 
     @news_auth.command(name="own")
@@ -248,6 +251,9 @@ class NewsCog(Cog, name="News"):
         - users: `<@!USER_ID>`
         - if you want to create a notification, the ping needs to be in a normal message, not within an embed!
         - you can create pings in embeds, if you do not want to notify anyone
+
+        @everyone can only be pinged using the role id of the default role (it is the same id as the guild id).
+        @here can not be pinged at all.
         """
 
         authorizations: list[NewsAuthorization] = await db.all(
@@ -291,6 +297,10 @@ class NewsCog(Cog, name="News"):
         try:
             for message in messages:
                 content: str | None = message.content
+                if content:
+                    content = content.replace("@everyone", f"@{ZERO_WIDTH_WHITESPACE}everyone").replace(
+                        "@here", f"@{ZERO_WIDTH_WHITESPACE}here"
+                    )
                 await channel.send(content=content, embeds=message.embeds)
             if ctx.message.attachments:
                 await channel.send(
