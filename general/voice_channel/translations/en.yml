@@ -169,12 +169,15 @@ log_whitespaces_no_longer_required: "Whitespaces as separators are from now on *
 text_channel_exists: "This voice channel already has an assigned text channel: {}"
 warning: "Warning"
 channel_readability_warning: |
-  - The text channel built into this voice channel is viewable and readable by any user, if they can see the voice channel.
-  - To hide this text channel, you need to lock or hide the voice channel.
-  
+  - The text channel built into this voice channel is **viewable and readable** by **any user**, if they can **join** the voice channel.
+  - To hide this text channel, you need to **lock or hide** the voice channel.
+
   The extra text channel (if existing) is only viewable and readable for a user,
   - while this user is in the matching voice channel or
   - if this user is whitelisted for that voice channel.
+
+  - This channel and the extra text channel are readable by the server team for moderation purposes. 
+  - **Do not share private details in these channels as text or stream, if you do not want members of the server team to be able to see them.**
 
 buttons:
   info: Info
