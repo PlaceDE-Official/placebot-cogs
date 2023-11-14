@@ -1,6 +1,6 @@
 from typing import Optional
 
-from discord import Embed, File, Forbidden, HTTPException, Member, Message, NotFound, Permissions, TextChannel
+from discord import Embed, File, Forbidden, HTTPException, Member, Message, NotFound, Permissions
 from discord.ext import commands
 from discord.ext.commands import CommandError, Context, UserInputError, guild_only
 
@@ -15,6 +15,7 @@ from PyDrocsid.discohook import (
     load_discohook_link,
 )
 from PyDrocsid.translations import t
+from PyDrocsid.types import GuildMessageable
 from PyDrocsid.util import check_message_send_permissions, read_complete_message, read_normal_message
 
 from .colors import Colors
@@ -30,7 +31,7 @@ t = t.message
 class MessageCog(Cog, name="Message Commands"):
     CONTRIBUTORS = [Contributor.Defelo, Contributor.wolflu, Contributor.LoC]
 
-    async def get_message_cancel(self, channel: TextChannel, member: Member) -> tuple[Optional[str], list[File]]:
+    async def get_message_cancel(self, channel: GuildMessageable, member: Member) -> tuple[Optional[str], list[File]]:
         content, files = await read_normal_message(self.bot, channel, member)
         if content == t.cancel:
             embed = Embed(title=t.messages, colour=Colors.MessageCommands, description=t.msg_send_cancel)
@@ -49,7 +50,7 @@ class MessageCog(Cog, name="Message Commands"):
 
     @send.command(name="text", aliases=["t"])
     @docs(t.commands.send_text)
-    async def send_text(self, ctx: Context, channel: TextChannel):
+    async def send_text(self, ctx: Context, channel: GuildMessageable):
         check_message_send_permissions(channel)
 
         embed = Embed(title=t.messages, colour=Colors.MessageCommands, description=t.send_message(t.cancel))
@@ -69,7 +70,7 @@ class MessageCog(Cog, name="Message Commands"):
 
     @send.command(name="embed", aliases=["e"])
     @docs(t.commands.send_embed)
-    async def send_embed(self, ctx: Context, channel: TextChannel, color: Optional[Color] = None):
+    async def send_embed(self, ctx: Context, channel: GuildMessageable, color: Optional[Color] = None):
         check_message_send_permissions(channel, check_embed=True)
 
         embed = Embed(title=t.messages, colour=Colors.MessageCommands, description=t.send_embed_title(t.cancel))
@@ -105,7 +106,7 @@ class MessageCog(Cog, name="Message Commands"):
 
     @send.command(name="copy", aliases=["c"])
     @docs(t.commands.send_copy)
-    async def send_copy(self, ctx: Context, channel: TextChannel, message: Message):
+    async def send_copy(self, ctx: Context, channel: GuildMessageable, message: Message):
         content, files, embed = await read_complete_message(message)
         try:
             await channel.send(content=content, embed=embed, files=files)
@@ -117,7 +118,7 @@ class MessageCog(Cog, name="Message Commands"):
 
     @send.command(name="discohook", aliases=["dh"])
     @docs(t.commands.send_discohook(DISCOHOOK_EMPTY_MESSAGE))
-    async def send_discohook(self, ctx: Context, channel: TextChannel, *, discohook_url: str):
+    async def send_discohook(self, ctx: Context, channel: GuildMessageable, *, discohook_url: str):
         try:
             messages: list[MessageContent] = [
                 msg for msg in await load_discohook_link(discohook_url) if not msg.is_empty
@@ -254,7 +255,7 @@ class MessageCog(Cog, name="Message Commands"):
         if message.guild is None:
             raise CommandError(t.cannot_delete_dm)
 
-        channel: TextChannel = message.channel
+        channel: GuildMessageable = message.channel
         permissions: Permissions = channel.permissions_for(message.guild.me)
         if message.author != self.bot.user and not permissions.manage_messages:
             raise CommandError(t.could_not_delete)
@@ -268,7 +269,7 @@ class MessageCog(Cog, name="Message Commands"):
     @guild_only()
     @docs(t.commands.clear)
     async def clear(self, ctx: Context, count: int):
-        channel: TextChannel = ctx.channel
+        channel: GuildMessageable = ctx.channel
 
         if count not in range(1, 101):
             raise CommandError(t.count_between)
