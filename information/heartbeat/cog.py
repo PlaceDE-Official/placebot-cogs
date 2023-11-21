@@ -8,9 +8,8 @@ from discord.utils import format_dt, utcnow
 
 from PyDrocsid.cog import Cog
 from PyDrocsid.config import Config
-from PyDrocsid.environment import OWNER_ID
 from PyDrocsid.translations import t
-from PyDrocsid.util import send_editable_log
+from PyDrocsid.util import get_owner, send_editable_log
 
 from ...contributor import Contributor
 
@@ -20,19 +19,16 @@ t = t.heartbeat
 
 
 class HeartbeatCog(Cog, name="Heartbeat"):
-    CONTRIBUTORS = [Contributor.Defelo, Contributor.wolflu]
+    CONTRIBUTORS = [Contributor.Defelo, Contributor.wolflu, Contributor.TNT2k]
 
     def __init__(self):
         super().__init__()
 
         self.initialized = False
 
-    def get_owner(self) -> Optional[User]:
-        return self.bot.get_user(OWNER_ID)
-
     @tasks.loop(seconds=20)
     async def status_loop(self):
-        if (owner := self.get_owner()) is None:
+        if (owner := get_owner(self.bot)) is None:
             return
         try:
             await send_editable_log(
@@ -42,12 +38,20 @@ class HeartbeatCog(Cog, name="Heartbeat"):
                 t.heartbeat,
                 format_dt(now := utcnow(), style="D") + " " + format_dt(now, style="T"),
             )
-            Path("health").write_text(str(int(datetime.now().timestamp())))
+            with open(Path("health"), "r") as f:
+                data = f.readlines()
+            if data and data[0].strip().isnumeric():
+                data[0] = str(int(datetime.now().timestamp())) + "\n"
+            else:
+                data = [str(int(datetime.now().timestamp())) + "\n"] + data
+            with open(Path("health"), "w+") as f:
+                f.writelines(data)
+
         except Forbidden:
             pass
 
     async def on_ready(self):
-        if (owner := self.get_owner()) is not None:
+        if (owner := get_owner(self.bot)) is not None:
             try:
                 await send_editable_log(
                     owner,
