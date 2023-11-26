@@ -13,3 +13,4 @@ rn_role_removed: Role {} has been removed from {}.
 rn_ping_role: ping role
 rn_ping_user: ping user
 cannot_send: RoleNotifications cannot send messages to {}.
+link_not_found: No matching link was found.

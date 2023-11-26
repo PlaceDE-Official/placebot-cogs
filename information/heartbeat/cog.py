@@ -9,7 +9,7 @@ from discord.utils import format_dt, utcnow
 from PyDrocsid.cog import Cog
 from PyDrocsid.config import Config
 from PyDrocsid.translations import t
-from PyDrocsid.util import get_owner, send_editable_log
+from PyDrocsid.util import send_editable_log, get_owners
 
 from ...contributor import Contributor
 
@@ -28,44 +28,46 @@ class HeartbeatCog(Cog, name="Heartbeat"):
 
     @tasks.loop(seconds=20)
     async def status_loop(self):
-        if (owner := get_owner(self.bot)) is None:
-            return
-        try:
-            await send_editable_log(
-                owner,
-                t.online_status,
-                t.status_description(Config.NAME, Config.VERSION),
-                t.heartbeat,
-                format_dt(now := utcnow(), style="D") + " " + format_dt(now, style="T"),
-            )
-            with open(Path("health"), "r") as f:
-                data = f.readlines()
-            if data and data[0].strip().isnumeric():
-                data[0] = str(int(datetime.now().timestamp())) + "\n"
-            else:
-                data = [str(int(datetime.now().timestamp())) + "\n"] + data
-            with open(Path("health"), "w+") as f:
-                f.writelines(data)
+        now = utcnow()
+        for owner in get_owners(self.bot):
+            try:
+                await send_editable_log(
+                    owner,
+                    t.online_status,
+                    t.status_description(Config.NAME, Config.VERSION),
+                    t.heartbeat,
+                    format_dt(now, style="D") + " " + format_dt(now, style="T"),
+                )
+                with open(Path("health"), "r") as f:
+                    data = f.readlines()
+                if data and data[0].strip().isnumeric():
+                    data[0] = str(int(datetime.now().timestamp())) + "\n"
+                else:
+                    data = [str(int(datetime.now().timestamp())) + "\n"] + data
+                with open(Path("health"), "w+") as f:
+                    f.writelines(data)
 
-        except Forbidden:
-            pass
+            except Forbidden:
+                pass
 
     async def on_ready(self):
-        if (owner := get_owner(self.bot)) is not None:
+        owners = get_owners(self.bot)
+        now = utcnow()
+        for owner in owners:
             try:
                 await send_editable_log(
                     owner,
                     t.online_status,
                     t.status_description(Config.NAME, Config.VERSION),
                     t.logged_in,
-                    format_dt(now := utcnow(), style="D") + " " + format_dt(now, style="T"),
+                    format_dt(now, style="D") + " " + format_dt(now, style="T"),
                     force_resend=True,
                     force_new_embed=not self.initialized,
                 )
             except Forbidden:
                 pass
 
-        if owner is not None:
+        if owners:
             try:
                 self.status_loop.start()
             except RuntimeError:

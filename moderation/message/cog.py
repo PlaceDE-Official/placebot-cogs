@@ -14,6 +14,7 @@ from PyDrocsid.discohook import (
     create_discohook_link,
     load_discohook_link,
 )
+from PyDrocsid.embeds import split_message
 from PyDrocsid.translations import t
 from PyDrocsid.types import GuildMessageable
 from PyDrocsid.util import check_message_send_permissions, read_complete_message, read_normal_message
@@ -133,10 +134,8 @@ class MessageCog(Cog, name="Message Commands"):
 
         try:
             for message in messages:
-                content: str | None = message.content
-                for embed in message.embeds or [None]:
-                    await channel.send(content=content, embed=embed)
-                    content = None
+                for msg in split_message(message.embeds, message.content):
+                    await channel.send(content=msg[0], embeds=msg[1])
         except (HTTPException, Forbidden):
             raise CommandError(t.msg_could_not_be_sent)
 

@@ -10,7 +10,7 @@ from PyDrocsid.cog import Cog
 from PyDrocsid.command import add_reactions, optional_permissions, reply
 from PyDrocsid.database import db, select
 from PyDrocsid.discohook import DiscoHookError, MessageContent, load_discohook_link
-from PyDrocsid.embeds import send_long_embed
+from PyDrocsid.embeds import send_long_embed, split_message
 from PyDrocsid.translations import t
 from PyDrocsid.util import ZERO_WIDTH_WHITESPACE, RoleListConverter, attachment_to_file, check_message_send_permissions
 
@@ -296,12 +296,13 @@ class NewsCog(Cog, name="News"):
 
         try:
             for message in messages:
-                content: str | None = message.content
-                if content:
-                    content = content.replace("@everyone", f"@{ZERO_WIDTH_WHITESPACE}everyone").replace(
-                        "@here", f"@{ZERO_WIDTH_WHITESPACE}here"
-                    )
-                await channel.send(content=content, embeds=message.embeds)
+                for msg in split_message(message.embeds, message.content):
+                    content: str | None = msg[0]
+                    if content:
+                        content = content.replace("@everyone", f"@{ZERO_WIDTH_WHITESPACE}everyone").replace(
+                            "@here", f"@{ZERO_WIDTH_WHITESPACE}here"
+                        )
+                    await ctx.author.send(content=content, embeds=msg[1])
             if ctx.message.attachments:
                 await channel.send(
                     files=[await attachment_to_file(attachment) for attachment in ctx.message.attachments]
@@ -352,8 +353,8 @@ class NewsCog(Cog, name="News"):
 
         try:
             for message in messages:
-                content: str | None = message.content
-                await ctx.author.send(content=content, embeds=message.embeds, allowed_mentions=AllowedMentions.none())
+                for msg in split_message(message.embeds, message.content):
+                    await ctx.author.send(content=msg[0], embeds=msg[1])
             if ctx.message.attachments:
                 await ctx.author.send(
                     files=[await attachment_to_file(attachment) for attachment in ctx.message.attachments],
@@ -365,23 +366,3 @@ class NewsCog(Cog, name="News"):
             raise CommandError(t.msg_could_not_be_sent_dm)
 
         await add_reactions(ctx.message, "white_check_mark")
-
-        """
-        files = [await attachment_to_file(attachment) for attachment in ctx.message.attachments]
-
-        content = ""
-        send_embed = Embed(title=t.news, description=message, colour=Colors.News)
-        send_embed.set_footer(text=t.sent_by(ctx.author, ctx.author.id), icon_url=ctx.author.display_avatar.url)
-
-        send_embed.colour = color if color is not None else Colors.News
-
-        if files and any(files[0].filename.lower().endswith(ext) for ext in ["jpg", "jpeg", "png", "gif"]):
-            send_embed.set_image(url="attachment://" + files[0].filename)
-
-        try:
-            await channel.send(content=content, embed=send_embed, files=files)
-        except (HTTPException, Forbidden):
-            raise CommandError(t.msg_could_not_be_sent)
-        else:
-            embed.description = t.msg_sent
-            await reply(ctx, embed=embed)"""

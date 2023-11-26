@@ -2,7 +2,7 @@ import itertools
 from random import random
 from typing import Optional, Union
 
-from discord import Embed, Member, User
+from discord import Embed, Member, User, Emoji
 from discord.ext import commands
 from discord.ext.commands import CommandError, Context, guild_only, max_concurrency
 from discord.utils import format_dt, snowflake_time
@@ -10,7 +10,7 @@ from discord.utils import format_dt, snowflake_time
 from PyDrocsid.async_thread import run_in_thread
 from PyDrocsid.cog import Cog
 from PyDrocsid.command import docs, reply
-from PyDrocsid.converter import Color, UserMemberConverter
+from PyDrocsid.converter import Color, UserMemberConverter, EmojiConverter
 from PyDrocsid.translations import t
 from PyDrocsid.util import measure_latency
 
@@ -103,3 +103,8 @@ class UtilsCog(Cog, name="Utils"):
         embed = Embed(title="#" + color, color=int(color, 16))
         embed.set_image(url=f"https://singlecolorimage.com/get/{color}/400x100")
         await reply(ctx, embed=embed)
+
+    @commands.command()
+    async def emoji_id(self, ctx: Context, emoji: EmojiConverter):
+        emoji: Emoji
+        await ctx.reply(content=str(emoji.id))
