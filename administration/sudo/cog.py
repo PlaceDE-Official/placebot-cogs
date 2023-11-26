@@ -4,6 +4,7 @@ import threading
 from discord import Message, TextChannel, Member, Embed, CheckFailure, Status, Game
 from discord.ext import commands
 from discord.ext.commands import Context, check, Command, CommandError
+from discord.utils import utcnow
 
 from PyDrocsid.bot_mode import write_status, get_mode_change_message, BotMode, mode_args
 from PyDrocsid.cog import Cog
@@ -111,6 +112,7 @@ class SudoCog(Cog, name="Sudo"):
         Will not stop any running actions.
         """
         await call_event_handlers("ready")
+        Config.LAST_RELOAD = utcnow()
         await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
 
     @sudo.command()

@@ -13,3 +13,8 @@ invalid_snowflake: Invalid snowflake!
 could_not_generate_color: Could not generate a new role color.
 username: Username
 nickname: Nickname
+uptime:
+  title: Uptime
+  started: "I was started at:"
+  last_reload: "My last reload was at:"
+  utc: All given times are in UTC time.

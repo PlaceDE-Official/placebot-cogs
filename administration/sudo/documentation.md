@@ -27,7 +27,7 @@ Arguments:
 ## Maintenance Commands
 
 !!! note
-    These commands do not necessarily have to be executed with the `.sudo` command. Theoretically, the required permission levels can be changed to any other permission level, so that users who are not allowed to execute the `.sudo` command can also use these maintenance commands. However, it is recommended to only allow trusted users to use these commands.
+    These commands do necessarily have to be executed with the `.sudo` command. But theoretically, the required permission levels can be changed to any other permission level, so that users who are not allowed to execute the `.sudo` command alone can also use these maintenance commands. However, it is recommended to only allow trusted users to use these commands.
 
 
 ### `clear_cache`
@@ -35,7 +35,7 @@ Arguments:
 Clears the redis cache by executing the `FLUSHDB` command.
 
 ```css
-.clear_cache
+.sudo clear_cache
 ```
 
 Required Permissions:
@@ -48,7 +48,7 @@ Required Permissions:
 Reloads the bot by refiring all startup functions.
 
 ```css
-.reload
+.sudo reload
 ```
 
 Required Permissions:
@@ -61,7 +61,7 @@ Required Permissions:
 Stops the running bot instance gracefully.
 
 ```css
-.stop
+.sudo stop
 ```
 
 Required Permissions:
@@ -74,9 +74,48 @@ Required Permissions:
 Kills the running bot instance.
 
 ```css
-.kill
+.sudo kill
 ```
 
 Required Permissions:
 
 - `sudo.kill`
+
+
+### `restart`
+
+Restart the bot completely.
+
+```css
+.sudo restart
+```
+
+Required Permissions:
+
+- `sudo.restart`
+
+
+### `maintenance`
+
+Sets the bot into maintenance mode. Only users having the `bypass_maintenance` permission or can use the `sudo` command on its own can interact with the bot.
+
+```css
+.sudo maintenance
+```
+
+Required Permissions:
+
+- `sudo.toggle_maintenance`
+
+
+### `show_sudoers`
+
+Lists all users, which can access the `sudo` command on its own.
+
+```css
+.sudo show_sudoers
+```
+
+Required Permissions:
+
+- `sudo.show_sudoers`

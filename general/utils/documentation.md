@@ -59,3 +59,23 @@ Arguments:
 Required Permissions:
 
 - `utils.suggest_role_color`
+
+
+```css
+.[emoji_id] <emoji>
+```
+
+Gives you the ID of the given emoji. Needed for custom emojis in bot messages.
+
+Arguments:
+
+| Argument |         Required          | Description                 |
+|:--------:|:-------------------------:|:----------------------------|
+| `emoji`  | :fontawesome-solid-check: | The emoji to get the id for |
+
+
+```css
+.[uptime]
+```
+
+Shows the time of last restart and last reload.

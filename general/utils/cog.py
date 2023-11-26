@@ -10,6 +10,7 @@ from discord.utils import format_dt, snowflake_time
 from PyDrocsid.async_thread import run_in_thread
 from PyDrocsid.cog import Cog
 from PyDrocsid.command import docs, reply
+from PyDrocsid.config import Config
 from PyDrocsid.converter import Color, UserMemberConverter, EmojiConverter
 from PyDrocsid.translations import t
 from PyDrocsid.util import measure_latency
@@ -108,3 +109,11 @@ class UtilsCog(Cog, name="Utils"):
     async def emoji_id(self, ctx: Context, emoji: EmojiConverter):
         emoji: Emoji
         await ctx.reply(content=str(emoji.id))
+
+    @commands.command()
+    async def uptime(self, ctx: Context):
+        embed = Embed(colour=Colors.Utils, title=t.uptime.title)
+        embed.add_field(name=t.uptime.started, value=Config.STARTED.strftime("%d.%m.%Y %H:%M:%S"), inline=False)
+        embed.add_field(name=t.uptime.last_reload, value=Config.LAST_RELOAD.strftime("%d.%m.%Y %H:%M:%S"), inline=False)
+        embed.set_footer(text=t.uptime.utc)
+        await ctx.reply(embed=embed)
