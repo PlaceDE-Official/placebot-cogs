@@ -3,6 +3,7 @@ permissions:
   toggle_maintenance: start and stop maintenance mode
   bypass_maintenance: interact with bot while in maintenance mode
   show_sudoers: show users, which can use the plain `sudo` command
+  restart: allows to restart the bot completely
   reload: reload the bot
   stop: stop the bot
   kill: kill the bot
