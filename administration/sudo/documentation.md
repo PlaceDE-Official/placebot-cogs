@@ -5,7 +5,7 @@ Contains the `.sudo` command, as well as some other commands used to maintain th
 
 ## `sudo`
 
-Allows a specific user to execute any command even without having the necessary permission level by temporarily granting the user the highest permission level (similar to the `sudo` command on Linux).
+Allows specific users to execute any command even without having the necessary permission level by temporarily granting the user the highest permission level (similar to the `sudo` command on Linux).
 
 ```css
 .sudo <command>
@@ -18,10 +18,10 @@ Arguments:
 | `command` | :fontawesome-solid-check: | The command to execute with owner privileges |
 
 !!! note
-    To use this command your user ID has to match the value of the `OWNER_ID` environment variable. If this environment variable is not set, the Sudo cog is disabled.
+    To use this command your user ID has to be set in the `SUDOERS` environment variable. If this environment variable is not set, the Sudo cog is disabled.
 
 !!! Hint
-    If you have run a command without having the required permission level, you can use `.sudo !!` to rerun this command with `owner` privileges.
+    If you have run a command without having the required permission level, you can use `.sudo !!` to rerun this command with `sudo` privileges.
 
 
 ## Maintenance Commands

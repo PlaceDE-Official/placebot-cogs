@@ -1,7 +1,19 @@
 permissions:
   clear_cache: clear redis cache
+  toggle_maintenance: start and stop maintenance mode
+  bypass_maintenance: interact with bot while in maintenance mode
+  show_sudoers: show users, which can use the plain `sudo` command
   reload: reload the bot
   stop: stop the bot
   kill: kill the bot
 
-not_in_sudoers_file: "{} is not in the sudoers file. This incident will be reported."
+not_in_sudoers_file: "{} is not in the sudoers file. This incident will ||not|| be reported."
+
+bot_restart: "Bot was restarted by {} ({} {}) at {} ({} unix time) (UTC)."
+sudoers_list: |
+  These users can use the plain `sudo` command and all subcommands of sudo.
+  They have all permissions, if they run `sudo <CMD>`.
+  
+  The sudoers are:
+  
+  {}

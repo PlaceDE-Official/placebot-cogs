@@ -11,5 +11,9 @@ class SudoPermission(BasePermission):
 
     clear_cache = auto()
     reload = auto()
+    restart = auto()
+    toggle_maintenance = auto()
+    bypass_maintenance = auto()
+    show_sudoers = auto()
     stop = auto()
     kill = auto()
