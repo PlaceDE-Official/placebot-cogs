@@ -8,7 +8,7 @@ from discord.utils import utcnow
 
 from PyDrocsid.bot_mode import BotMode, get_mode_change_message, mode_args, write_status
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import can_run_command
+from PyDrocsid.command import can_run_command, reply
 from PyDrocsid.config import Config
 from PyDrocsid.emojis import name_to_emoji
 from PyDrocsid.environment import SUDOERS
@@ -96,7 +96,7 @@ class SudoCog(Cog, name="Sudo"):
         """
         sudoers = "\n".join({ctx.guild.owner.mention} | set(map(lambda x: f"<@{x}>", SUDOERS)))
         embed = Embed(color=MaterialColors.blue, title="Sudoers", description=t.sudoers_list(sudoers))
-        await ctx.reply(embed=embed)
+        await reply(ctx, embed=embed)
 
     @sudo.command()
     @SudoPermission.clear_cache.check
@@ -187,5 +187,5 @@ class SudoCog(Cog, name="Sudo"):
             await ctx.bot.change_presence(status=Status.online, activity=Game(name=Config.BOT_MODE.bot_activity))
         else:
             await ctx.bot.change_presence(status=Status.online, activity=None)
-        await ctx.reply(embed=embed)
+        await reply(ctx, embed=embed)
         await ctx.message.add_reaction(name_to_emoji["white_check_mark"])

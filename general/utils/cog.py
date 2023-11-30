@@ -108,7 +108,7 @@ class UtilsCog(Cog, name="Utils"):
     @commands.command()
     async def emoji_id(self, ctx: Context, emoji: EmojiConverter):
         emoji: Emoji
-        await ctx.reply(content=str(emoji.id))
+        await reply(ctx, content=str(emoji.id))
 
     @commands.command()
     async def uptime(self, ctx: Context):
@@ -116,4 +116,4 @@ class UtilsCog(Cog, name="Utils"):
         embed.add_field(name=t.uptime.started, value=Config.STARTED.strftime("%d.%m.%Y %H:%M:%S"), inline=False)
         embed.add_field(name=t.uptime.last_reload, value=Config.LAST_RELOAD.strftime("%d.%m.%Y %H:%M:%S"), inline=False)
         embed.set_footer(text=t.uptime.utc)
-        await ctx.reply(embed=embed)
+        await reply(ctx, embed=embed)
