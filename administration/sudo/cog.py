@@ -1,12 +1,12 @@
 import sys
 import threading
 
-from discord import Message, TextChannel, Member, Embed, CheckFailure, Status, Game
+from discord import CheckFailure, Embed, Game, Member, Message, Status, TextChannel
 from discord.ext import commands
-from discord.ext.commands import Context, check, Command, CommandError
+from discord.ext.commands import Command, CommandError, Context, check
 from discord.utils import utcnow
 
-from PyDrocsid.bot_mode import write_status, get_mode_change_message, BotMode, mode_args
+from PyDrocsid.bot_mode import BotMode, get_mode_change_message, mode_args, write_status
 from PyDrocsid.cog import Cog
 from PyDrocsid.command import can_run_command
 from PyDrocsid.config import Config
@@ -19,8 +19,10 @@ from PyDrocsid.permission import permission_override
 from PyDrocsid.redis_client import redis
 from PyDrocsid.translations import t
 from PyDrocsid.util import get_owners, is_sudoer
+
 from .permissions import SudoPermission
 from ...contributor import Contributor
+
 
 tg = t.g
 t = t.sudo
@@ -77,12 +79,14 @@ class SudoCog(Cog, name="Sudo"):
                 message.content = msg.content
 
             logger.info(
-                f"User {ctx.author.mention} ({ctx.author.name} / {ctx.author.id}) invoked sudo command: {message.content}")
+                f"User {ctx.author.mention} ({ctx.author.name} / {ctx.author.id}) invoked sudo command: {message.content}"
+            )
 
             await self.bot.process_commands(message)
         else:
             logger.info(
-                f"User {ctx.author.mention} ({ctx.author.name} / {ctx.author.id}) invoked sudo command: {ctx.message.content}")
+                f"User {ctx.author.mention} ({ctx.author.name} / {ctx.author.id}) invoked sudo command: {ctx.message.content}"
+            )
 
     @sudo.command(aliases=["sudoers"])
     @SudoPermission.show_sudoers.check

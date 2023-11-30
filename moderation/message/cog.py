@@ -256,7 +256,7 @@ class MessageCog(Cog, name="Message Commands"):
 
         channel: GuildMessageable = message.channel
         permissions: Permissions = channel.permissions_for(message.guild.me)
-        if message.author != self.bot.user and not permissions.manage_messages:
+        if message.author != self.bot.user and not permissions.manage_messages or message.is_system():
             raise CommandError(t.could_not_delete)
 
         await message.delete()

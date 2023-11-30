@@ -31,7 +31,7 @@ from discord.utils import format_dt, utcnow
 
 from PyDrocsid.async_thread import GatherAnyError, gather_any, run_as_task
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import Confirmation, docs, optional_permissions, reply, MaintenanceAwareView
+from PyDrocsid.command import Confirmation, MaintenanceAwareView, docs, optional_permissions, reply
 from PyDrocsid.database import db, db_context, db_wrapper, delete, filter_by, select
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.emojis import name_to_emoji
@@ -42,12 +42,14 @@ from PyDrocsid.redis_client import redis
 from PyDrocsid.settings import RoleSettings
 from PyDrocsid.translations import t
 from PyDrocsid.util import DynamicVoiceConverter, check_role_assignable, escape_codeblock, send_editable_log
+
 from .colors import Colors
 from .models import AllowedChannelName, DynChannel, DynChannelMember, DynGroup, RoleVoiceLink
 from .permissions import VoiceChannelPermission
 from .settings import DynamicVoiceSettings
 from ...contributor import Contributor
 from ...pubsub import send_alert, send_to_changelog
+
 
 tg = t.g
 t = t.voice_channel
@@ -129,12 +131,12 @@ def get_user_role(guild: Guild, channel: DynChannel) -> Role | None:
 
 
 def remove_lock_overrides(
-        channel: DynChannel,
-        voice_channel: VoiceChannel,
-        overwrites: Overwrites,
-        *,
-        keep_members: bool,
-        reset_user_role: bool,
+    channel: DynChannel,
+    voice_channel: VoiceChannel,
+    overwrites: Overwrites,
+    *,
+    keep_members: bool,
+    reset_user_role: bool,
 ) -> Overwrites:
     me = voice_channel.guild.me
     overwrites = {
@@ -152,7 +154,7 @@ def remove_lock_overrides(
 
 
 async def safe_create_voice_channel(
-        category: CategoryChannel | Guild, channel: DynChannel, name: str, overwrites: Overwrites
+    category: CategoryChannel | Guild, channel: DynChannel, name: str, overwrites: Overwrites
 ) -> VoiceChannel:
     guild: Guild = category.guild if isinstance(category, CategoryChannel) else category
     user_role: Role = get_user_role(guild, channel)
@@ -268,12 +270,12 @@ class ControlMessage(MaintenanceAwareView):
 
 
 def _recurse_name_check(
-        s: str,
-        allowed: dict[str, set[str]],
-        dp: list[bool],
-        name_parts: list[tuple[str, str]],
-        result: list[list[tuple[str, str]]],
-        require_whitespaces: bool = True,
+    s: str,
+    allowed: dict[str, set[str]],
+    dp: list[bool],
+    name_parts: list[tuple[str, str]],
+    result: list[list[tuple[str, str]]],
+    require_whitespaces: bool = True,
 ):
     for i in reversed(range(len(s))):
         if s[i] == " " and (i + 1 >= len(s) or dp[i + 1]):
@@ -285,13 +287,12 @@ def _recurse_name_check(
             for w in names:
                 # wenn etwas passt
                 if (
-                        s[i: i + len(w)] == w
-                        and (
-                        i + len(w) >= len(s) or dp[i + len(w)] and (not require_whitespaces or s[i + len(w)] == " "))
-                        and not any(dp[i: i + len(w)])
+                    s[i : i + len(w)] == w
+                    and (i + len(w) >= len(s) or dp[i + len(w)] and (not require_whitespaces or s[i + len(w)] == " "))
+                    and not any(dp[i : i + len(w)])
                 ):
                     dp_copy = dp.copy()
-                    dp_copy[i: i + len(w)] = [True] * len(w)
+                    dp_copy[i : i + len(w)] = [True] * len(w)
                     name_parts_copy = name_parts.copy()
                     name_parts_copy.append((filename, w))
                     # wenn das wort vollständig ist -> keine weitere recursion, ergebnis speichern
@@ -361,9 +362,8 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                     continue
                 for _, names in allowed.items():
                     for w in names:
-                        if s[i: i + len(w)] == w and (
-                                i + len(w) >= len(s) or dp[i + len(w)] and (
-                                not require_whitespaces or s[i + len(w)] == " ")
+                        if s[i : i + len(w)] == w and (
+                            i + len(w) >= len(s) or dp[i + len(w)] and (not require_whitespaces or s[i + len(w)] == " ")
                         ):
                             dp[i] = True
                             break
@@ -500,12 +500,12 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         raise CommandError(t.private_voice_owner_required)
 
     async def get_channel(
-            self,
-            member: Member,
-            *,
-            check_owner: bool,
-            check_locked: bool = False,
-            channel: VoiceChannel | TextChannel | None = None,
+        self,
+        member: Member,
+        *,
+        check_owner: bool,
+        check_locked: bool = False,
+        channel: VoiceChannel | TextChannel | None = None,
     ) -> tuple[DynChannel, VoiceChannel, TextChannel | None]:
         if not channel and member.voice is not None and member.voice.channel is not None:
             channel = member.voice.channel
@@ -635,7 +635,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             await self.send_voice_msg(channel, t.voice_channel, t.locked(member.mention), force_new_embed=True)
 
     async def unlock_channel(
-            self, member: Member | None, channel: DynChannel, voice_channel: VoiceChannel, *, skip_text: bool = False
+        self, member: Member | None, channel: DynChannel, voice_channel: VoiceChannel, *, skip_text: bool = False
     ):
         channel.locked = False
         overwrites = remove_lock_overrides(
@@ -729,7 +729,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             await self.fix_owner(channel)
 
     async def create_text_channel(
-            self, dyn_channel: DynChannel, voice_channel: VoiceChannel, ctx: Context = None
+        self, dyn_channel: DynChannel, voice_channel: VoiceChannel, ctx: Context = None
     ) -> TextChannel | None:
         text_channel: TextChannel
         guild: Guild = voice_channel.guild
@@ -898,9 +898,9 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             async def create_new_channel() -> bool:
                 # check if there is at least one empty channel
                 if not all(
-                        any(not m.bot for m in c.members)
-                        for chnl in dyn_channel.group.channels
-                        if chnl.channel_id != dyn_channel.channel_id and (c := self.bot.get_channel(chnl.channel_id))
+                    any(not m.bot for m in c.members)
+                    for chnl in dyn_channel.group.channels
+                    if chnl.channel_id != dyn_channel.channel_id and (c := self.bot.get_channel(chnl.channel_id))
                 ):
                     return True
 
@@ -1062,8 +1062,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
     @VoiceChannelPermission.dyn_write.check
     @docs(t.commands.voice_dynamic_add)
     async def voice_dynamic_add(
-            self, ctx: Context, user_role: Role | None, create_text_channel_by_default: bool, *,
-            voice_channel: VoiceChannel
+        self, ctx: Context, user_role: Role | None, create_text_channel_by_default: bool, *, voice_channel: VoiceChannel
     ):
         async with channel_locks[voice_channel.id]:
             everyone = voice_channel.guild.default_role

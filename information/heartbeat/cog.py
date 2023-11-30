@@ -9,7 +9,7 @@ from discord.utils import format_dt, utcnow
 from PyDrocsid.cog import Cog
 from PyDrocsid.config import Config
 from PyDrocsid.translations import t
-from PyDrocsid.util import send_editable_log, get_owners
+from PyDrocsid.util import get_owners, send_editable_log
 
 from ...contributor import Contributor
 

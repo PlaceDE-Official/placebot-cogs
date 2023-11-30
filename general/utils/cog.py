@@ -2,7 +2,7 @@ import itertools
 from random import random
 from typing import Optional, Union
 
-from discord import Embed, Member, User, Emoji
+from discord import Embed, Emoji, Member, User
 from discord.ext import commands
 from discord.ext.commands import CommandError, Context, guild_only, max_concurrency
 from discord.utils import format_dt, snowflake_time
@@ -11,7 +11,7 @@ from PyDrocsid.async_thread import run_in_thread
 from PyDrocsid.cog import Cog
 from PyDrocsid.command import docs, reply
 from PyDrocsid.config import Config
-from PyDrocsid.converter import Color, UserMemberConverter, EmojiConverter
+from PyDrocsid.converter import Color, EmojiConverter, UserMemberConverter
 from PyDrocsid.translations import t
 from PyDrocsid.util import measure_latency
 
