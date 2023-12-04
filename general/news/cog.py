@@ -302,7 +302,7 @@ class NewsCog(Cog, name="News"):
                         content = content.replace("@everyone", f"@{ZERO_WIDTH_WHITESPACE}everyone").replace(
                             "@here", f"@{ZERO_WIDTH_WHITESPACE}here"
                         )
-                    await ctx.author.send(content=content, embeds=msg[1])
+                    await channel.send(content=content, embeds=msg[1])
             if ctx.message.attachments:
                 await channel.send(
                     files=[await attachment_to_file(attachment) for attachment in ctx.message.attachments]
@@ -317,7 +317,7 @@ class NewsCog(Cog, name="News"):
     @news.command(name="test", aliases=["t"])
     async def news_test(self, ctx: Context, *, discohook_url: str):
         """
-        tests a news message (replies in the channel in which the command was sent, no one is pinged)
+        tests a news message (sends you everything per dm, instead of into a channel)
         - generate the discohook link using https://discohook.org (use "Share Message" at the top of the page to get short link)
         - add attachments to this command (not the message on discohook) to attach them to the sent message
 
@@ -330,15 +330,6 @@ class NewsCog(Cog, name="News"):
         - you can create pings in embeds, if you do not want to notify anyone
         """
 
-        authorizations: list[NewsAuthorization] = await db.all(
-            select(NewsAuthorization).filter(
-                NewsAuthorization.source_id.in_([role.id for role in ctx.author.roles] + [ctx.author.id])
-            )
-        )
-
-        if not authorizations:
-            raise CommandError(t.news_you_are_not_authorized)
-
         try:
             messages: list[MessageContent] = [
                 msg for msg in await load_discohook_link(discohook_url) if not msg.is_empty
@@ -348,8 +339,6 @@ class NewsCog(Cog, name="News"):
 
         if not messages:
             raise CommandError(t.discohook_empty)
-
-        check_message_send_permissions(ctx.channel, check_embed=any(m.embeds for m in messages))
 
         try:
             for message in messages:
