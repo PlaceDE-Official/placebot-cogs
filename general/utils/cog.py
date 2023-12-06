@@ -1,5 +1,6 @@
 import itertools
-from random import random
+import random
+import string
 from typing import Optional, Union
 
 from discord import Embed, Emoji, Member, User
@@ -12,6 +13,7 @@ from PyDrocsid.cog import Cog
 from PyDrocsid.command import docs, reply
 from PyDrocsid.config import Config
 from PyDrocsid.converter import Color, EmojiConverter, UserMemberConverter
+from PyDrocsid.material_colors import MaterialColors
 from PyDrocsid.translations import t
 from PyDrocsid.util import measure_latency
 
@@ -26,7 +28,7 @@ t = t.utils
 
 @run_in_thread
 def generate_color(colors: list[tuple[float, float, float]], n: int, a: float) -> tuple[float, float, float]:
-    guess = [random() for _ in range(3)]  # noqa: S311
+    guess = [random.random() for _ in range(3)]  # noqa: S311
     last = None
     for _ in range(n):
         new_guess = guess.copy()
@@ -116,4 +118,14 @@ class UtilsCog(Cog, name="Utils"):
         embed.add_field(name=t.uptime.started, value=Config.STARTED.strftime("%d.%m.%Y %H:%M:%S"), inline=False)
         embed.add_field(name=t.uptime.last_reload, value=Config.LAST_RELOAD.strftime("%d.%m.%Y %H:%M:%S"), inline=False)
         embed.set_footer(text=t.uptime.utc)
+        await reply(ctx, embed=embed)
+
+    @commands.command(aliases=["kesk", "cookie"])
+    async def keks(self, ctx: Context):
+        embed = Embed(title="Nächste Kekslieferungszeit:", colour=MaterialColors.blue)
+        embed.set_image(
+            url=f"https://kekse.tnt2k.de/kekszeitraum.png?{''.join([random.choice(string.ascii_letters) for _ in range(10)])}"
+        )
+        embed.description = "*Es kann **bis zu 10 Minuten** dauern, bis das Bild zu den echten Daten passt.*"
+        embed.set_footer(text="Danke an master, butterkatze, golem, funkie, moinkas, shrimp und elias!")
         await reply(ctx, embed=embed)
