@@ -122,6 +122,8 @@ class UtilsCog(Cog, name="Utils"):
 
     @commands.command(aliases=["kesk", "cookie"])
     async def keks(self, ctx: Context):
+        if ctx.channel.id not in [1153276001619546193]:
+            return
         embed = Embed(title="Nächste Kekslieferungszeit:", colour=MaterialColors.blue)
         embed.set_image(
             url=f"https://kekse.tnt2k.de/kekszeitraum.png?{''.join([random.choice(string.ascii_letters) for _ in range(10)])}"
