@@ -129,5 +129,5 @@ class UtilsCog(Cog, name="Utils"):
             url=f"https://kekse.tnt2k.de/kekszeitraum.png?{''.join([random.choice(string.ascii_letters) for _ in range(10)])}"
         )
         embed.description = "*Es kann **bis zu 10 Minuten** dauern, bis das Bild zu den echten Daten passt.*"
-        embed.set_footer(text="Danke an master, butterkatze, golem, funkie, moinkas, shrimp und elias!")
+        embed.set_footer(text="Danke an master, butterkatze, golem, funkie, moinkas, shrimp, fabry und elias!")
         await reply(ctx, embed=embed)
