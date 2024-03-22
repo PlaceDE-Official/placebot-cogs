@@ -10,20 +10,71 @@ commands:
   remove: remove a media only channel
 
 mediaonly: MediaOnly
-deleted_nomedia: >
-  Only pictures are allowed in this channel.
-  For conversations please use the channels designated for this purpose.
+media_only_channels_header: "Media only channels"
+
+# warnings
+ulog_deletion: ":frame_photo: **Sent** a message to the mediaonly channel {}, which did not statisfy the requirements."
+deleted:
+  1: | 
+    Only pictures are allowed in this channel.
+    For conversations please use the channels designated for this purpose.
+  2: |
+    Only emotes are allowed in this channel.
+    For other messages please use the channels designated for this purpose.
+  4: |
+    Images and emotes are not allowed in this channel.
+    For other messages please use the channels designated for this purpose.
+  3: |
+    Only images and emotes are allowed in this channel.
+    For other messages please use the channels designated for this purpose.
+  5: |
+    Emotes are not allowed in this channel.
+    For other messages please use the channels designated for this purpose.
+  6: |
+    Images are not allowed in this channel.
+    For other messages please use the channels designated for this purpose.
+  character_limit: | 
+    Sorry, your message is too long. The limit in this channel is {} characters.
+    Emotes and images (if allowed) are treated as single characters.
+
+# logs
+channel_now_media_only: "Channel is now a media only channel. :white_check_mark:"
+log_channel_now_media_only: |
+  **Channel** {} has been **added** to the list of **media only channels**.
+  Mode is set to `{}` and messages must not be longer than `{}`.
+  Logging is set to `{}`.
+channel_not_media_only_anymore: "Channel is not a media only channel anymore. :white_check_mark:"
+log_channel_not_media_only_anymore: "**Channel** {} has been **removed** from the list of **media only channels**."
+
 log_deleted_nomedia: "**Deleted a message** of {} in **media only channel** {} because it did not contain an image."
 log_nomedia_not_deleted: >
   MediaOnly could not delete a message of {} in {} because I don't have `manage_messages` permission there.
-media_only_channels_header: "Media only channels"
+
+# errors
 no_media_only_channels: ":x: No media only channels."
 channel_already_media_only: Channel is already a media only channel.
-channel_now_media_only: "Channel is now a media only channel. :white_check_mark:"
-log_channel_now_media_only: "**Channel** {} has been **added** to the list of **media only channels**."
 channel_not_media_only: Channel is not a media only channel.
-channel_not_media_only_anymore: "Channel is not a media only channel anymore. :white_check_mark:"
-log_channel_not_media_only_anymore: "**Channel** {} has been **removed** from the list of **media only channels**."
 media_only_not_changed_no_permissions: >
   Media only channel could not be added because I don't have `manage_messages` permission there.
-ulog_deletion: ":frame_photo: **Sent** a message without a picture to the mediaonly channel {}."
+max_length_negative: "`max_length` must not be negative!"
+max_length_ignored: ":warning: `max_length` does not have any effect in this mode!"
+mode_invalid: "`mode` is invalid, must be not lower than 1 and not greater than 7."
+
+# various
+syntax_explanation: "Read given information as follows: <CHANNEL><MODE><MAX_LENGTH><LOG>"
+mode_explanation: |
+  **Modes:**
+  - `1`: Message can only contain images (or links to images).
+  - `2`: Message can only contain emotes. 
+  - `4`: Messages can only contain text, no images or emotes (links are allowed though).  
+  This modes can be mixed (sum the numbers), to allow multiple things together, e.g.
+  mode `5` allows images and text, but no emotes.
+  
+  `max_length`:
+  - Every image and emote is treated as one "character". 
+  - Has no effect if set to 0.
+  
+  `log`:
+  - If true, an alert will be sent and a ulog entry created if a user sends a non-compliant message.
+  - If false, no warning will be shown to the user; the message is deleted silently.
+  - This setting exists to reduce spam for channels with high message volume, like StageChannels during events.
