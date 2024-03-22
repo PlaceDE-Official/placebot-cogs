@@ -1,6 +1,5 @@
 import itertools
 import random
-import string
 from typing import Optional, Union
 
 from discord import Embed, Emoji, Member, User
@@ -13,7 +12,6 @@ from PyDrocsid.cog import Cog
 from PyDrocsid.command import docs, reply
 from PyDrocsid.config import Config
 from PyDrocsid.converter import Color, EmojiConverter, UserMemberConverter
-from PyDrocsid.material_colors import MaterialColors
 from PyDrocsid.translations import t
 from PyDrocsid.util import measure_latency
 
@@ -120,8 +118,9 @@ class UtilsCog(Cog, name="Utils"):
         embed.set_footer(text=t.uptime.utc)
         await reply(ctx, embed=embed)
 
-    @commands.command(aliases=["kesk", "cookie"])
-    async def keks(self, ctx: Context):
+    """@commands.command(aliases=["kesk", "cookie"])
+    async def keks(self, ctx: Context, *, args: str):
+        print(args)
         if ctx.channel.id not in [1153276001619546193]:
             return
         embed = Embed(title="Nächste Kekslieferungszeit:", colour=MaterialColors.blue)
@@ -130,4 +129,4 @@ class UtilsCog(Cog, name="Utils"):
         )
         embed.description = "*Es kann **bis zu 10 Minuten** dauern, bis das Bild zu den echten Daten passt.*"
         embed.set_footer(text="Danke an master, butterkatze, golem, funkie, moinkas, shrimp, fabry und elias!")
-        await reply(ctx, embed=embed)
+        await reply(ctx, embed=embed)"""
