@@ -1,7 +1,7 @@
 import sys
 import threading
 
-from discord import CheckFailure, Embed, Game, Member, Message, Status, TextChannel
+from discord import CheckFailure, CustomActivity, Embed, Member, Message, Status
 from discord.ext import commands
 from discord.ext.commands import Command, CommandError, Context, check
 from discord.utils import utcnow
@@ -18,6 +18,7 @@ from PyDrocsid.material_colors import MaterialColors
 from PyDrocsid.permission import permission_override
 from PyDrocsid.redis_client import redis
 from PyDrocsid.translations import t
+from PyDrocsid.types import GuildMessageable
 from PyDrocsid.util import get_owners, is_sudoer
 
 from .permissions import SudoPermission
@@ -46,7 +47,7 @@ class SudoCog(Cog, name="Sudo"):
 
     def __init__(self):
         super().__init__()
-        self.sudo_cache: dict[(TextChannel, Member), Message] = {}
+        self.sudo_cache: dict[(GuildMessageable, Member), Message] = {}
 
     async def on_command_error(self, ctx: Context, _):
         if ctx.author.id in SUDOERS:
@@ -184,7 +185,9 @@ class SudoCog(Cog, name="Sudo"):
         write_status(message)
 
         if Config.BOT_MODE.bot_activity:
-            await ctx.bot.change_presence(status=Status.online, activity=Game(name=Config.BOT_MODE.bot_activity))
+            await ctx.bot.change_presence(
+                status=Status.online, activity=CustomActivity(name=Config.BOT_MODE.bot_activity)
+            )
         else:
             await ctx.bot.change_presence(status=Status.online, activity=None)
         await reply(ctx, embed=embed)

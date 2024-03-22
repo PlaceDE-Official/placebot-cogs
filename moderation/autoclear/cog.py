@@ -2,7 +2,7 @@ import asyncio
 from datetime import timedelta
 from typing import Optional
 
-from discord import Embed, Forbidden, Message, NotFound, TextChannel
+from discord import Embed, Forbidden, Message, NotFound
 from discord.ext import commands, tasks
 from discord.ext.commands import CommandError, Context, UserInputError, guild_only
 from discord.utils import utcnow
@@ -13,6 +13,7 @@ from PyDrocsid.database import db, db_wrapper, select
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.emojis import name_to_emoji
 from PyDrocsid.translations import t
+from PyDrocsid.types import GuildMessageable
 
 from .colors import Colors
 from .models import AutoClearChannel
@@ -25,7 +26,7 @@ tg = t.g
 t = t.autoclear
 
 
-async def clear_channel(channel: TextChannel, minutes: int, limit: Optional[int] = None):
+async def clear_channel(channel: GuildMessageable, minutes: int, limit: Optional[int] = None):
     if not channel.permissions_for(channel.guild.me).read_message_history:
         await send_alert(channel.guild, t.cannot_read(channel.mention))
         return
@@ -78,7 +79,7 @@ class AutoClearCog(Cog, name="AutoClear"):
         embed = Embed(title=t.autoclear, colour=Colors.AutoClear)
         out = []
         async for autoclear in await db.stream(select(AutoClearChannel)):
-            channel: Optional[TextChannel] = self.bot.get_channel(autoclear.channel)
+            channel: Optional[GuildMessageable] = self.bot.get_channel(autoclear.channel)
             if not channel:
                 await db.delete(autoclear)
                 continue
@@ -96,7 +97,7 @@ class AutoClearCog(Cog, name="AutoClear"):
     @autoclear.command(aliases=["s", "add", "a", "+", "="])
     @AutoClearPermission.write.check
     @docs(t.commands.set)
-    async def set(self, ctx: Context, channel: TextChannel, minutes: int):
+    async def set(self, ctx: Context, channel: GuildMessageable, minutes: int):
         if not 0 < minutes < (1 << 31):
             raise CommandError(tg.invalid_duration)
 
@@ -115,7 +116,7 @@ class AutoClearCog(Cog, name="AutoClear"):
     @autoclear.command(aliases=["d", "delete", "del", "remove", "r", "-"])
     @AutoClearPermission.write.check
     @docs(t.commands.disable)
-    async def disable(self, ctx: Context, channel: TextChannel):
+    async def disable(self, ctx: Context, channel: GuildMessageable):
         row = await db.get(AutoClearChannel, channel=channel.id)
         if not row:
             raise CommandError(t.not_configured)

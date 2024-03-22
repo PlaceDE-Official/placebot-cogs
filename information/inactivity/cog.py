@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
 
-from discord import Embed, Guild, Member, Message, NotFound, Permissions, Role, Status, TextChannel
+from discord import Embed, Guild, Member, Message, NotFound, Permissions, Role, Status
 from discord.ext import commands
 from discord.ext.commands import CommandError, Context, guild_only, max_concurrency
 from discord.utils import format_dt, utcnow
@@ -14,6 +14,7 @@ from PyDrocsid.config import Contributor
 from PyDrocsid.database import db, db_wrapper
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.translations import t
+from PyDrocsid.types import GuildMessageable
 
 from .models import Activity
 from .permissions import InactivityPermission
@@ -50,8 +51,8 @@ async def scan(ctx: Context, days: int):
     message: list[Message] = [await reply(ctx, embed=embed)]
     guild: Guild = ctx.guild
     members: dict[Member, datetime] = {}
-    active: dict[TextChannel, int] = {}
-    completed: list[TextChannel] = []
+    active: dict[GuildMessageable, int] = {}
+    completed: list[GuildMessageable] = []
 
     async def update_progress_message():
         while len(completed) < len(channels):
@@ -62,7 +63,7 @@ async def scan(ctx: Context, days: int):
             message[0] = await update_msg(message[0], content)
             await asyncio.sleep(2)
 
-    async def update_members(c: TextChannel):
+    async def update_members(c: GuildMessageable):
         active[c] = 0
 
         async for msg in c.history(limit=None, oldest_first=False):
@@ -75,7 +76,7 @@ async def scan(ctx: Context, days: int):
         del active[c]
         completed.append(c)
 
-    channels: list[TextChannel] = []
+    channels: list[GuildMessageable] = []
     for channel in guild.text_channels:
         permissions: Permissions = channel.permissions_for(ctx.me)
         if permissions.read_messages and permissions.read_message_history:

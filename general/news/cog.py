@@ -1,7 +1,7 @@
 import re
 from typing import Dict, List, Optional, Union
 
-from discord import AllowedMentions, Embed, Forbidden, HTTPException, Member, Role, TextChannel
+from discord import AllowedMentions, Embed, Forbidden, HTTPException, Member, Role
 from discord.ext import commands
 from discord.ext.commands import CommandError, Context, UserInputError, guild_only
 from sqlalchemy import and_
@@ -12,6 +12,7 @@ from PyDrocsid.database import db, select
 from PyDrocsid.discohook import DiscoHookError, MessageContent, load_discohook_link
 from PyDrocsid.embeds import send_long_embed, split_message
 from PyDrocsid.translations import t
+from PyDrocsid.types import GuildMessageable
 from PyDrocsid.util import ZERO_WIDTH_WHITESPACE, RoleListConverter, attachment_to_file, check_message_send_permissions
 
 from .colors import Colors
@@ -27,7 +28,7 @@ t = t.news
 
 async def list_auth(ctx: Context, member: Optional[Member] = None):
     embed = Embed(title=t.news, colour=Colors.News)
-    channels: Dict[TextChannel, Dict[Union[Member, Role], List[Role]]] = {}
+    channels: Dict[GuildMessageable, Dict[Union[Member, Role], List[Role]]] = {}
     auth: NewsAuthorization
     if member:
         authorizations = db.stream(
@@ -42,7 +43,7 @@ async def list_auth(ctx: Context, member: Optional[Member] = None):
             auth.source_id
         )
         notification_rid: Optional[Role] = ctx.guild.get_role(auth.notification_role_id)
-        channel: Optional[TextChannel] = ctx.guild.get_channel(auth.channel_id)
+        channel: Optional[GuildMessageable] = ctx.guild.get_channel(auth.channel_id)
         if source is None or channel is None or notification_rid is None and auth.notification_role_id is not None:
             await db.delete(auth)
             continue
@@ -114,7 +115,7 @@ class NewsCog(Cog, name="News"):
         self,
         ctx: Context,
         source: Union[Member, Role],
-        channel: TextChannel,
+        channel: GuildMessageable,
         *,
         allowed_roles: RoleListConverter = None,
     ):
@@ -180,7 +181,7 @@ class NewsCog(Cog, name="News"):
         self,
         ctx: Context,
         source: Union[Member, Role],
-        channel: TextChannel,
+        channel: GuildMessageable,
         *,
         allowed_roles: Optional[RoleListConverter],
     ):
@@ -238,7 +239,7 @@ class NewsCog(Cog, name="News"):
         await send_to_changelog(ctx.guild, value2)
 
     @news.command(name="send", aliases=["s"])
-    async def news_send(self, ctx: Context, channel: TextChannel, *, discohook_url: str):
+    async def news_send(self, ctx: Context, channel: GuildMessageable, *, discohook_url: str):
         """
         send a news message
         - generate the discohook link using https://discohook.org (use "Share Message" at the top of the page to get short link)

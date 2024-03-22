@@ -7,7 +7,7 @@ from typing import Optional
 
 import requests
 from aiohttp import ClientSession
-from discord import AllowedMentions, Embed, Forbidden, HTTPException, NotFound, TextChannel, User
+from discord import AllowedMentions, Embed, Forbidden, HTTPException, NotFound, User
 from discord.ext import commands
 from discord.ext.commands import Command, CommandError, Context, Converter, UserInputError, guild_only
 from urllib3.exceptions import LocationParseError
@@ -23,6 +23,7 @@ from PyDrocsid.logger import get_logger
 from PyDrocsid.permission import BasePermissionLevel
 from PyDrocsid.redis_client import redis
 from PyDrocsid.translations import t
+from PyDrocsid.types import GuildMessageable
 from PyDrocsid.util import check_message_send_permissions
 
 from .colors import Colors
@@ -67,7 +68,7 @@ class CustomCommandConverter(Converter):
 async def send_custom_command_message(
     ctx: Context,
     custom_command: CustomCommand,
-    channel: TextChannel,
+    channel: GuildMessageable,
     test: bool = False,
     mention_user: Optional[User] = None,
 ):
@@ -146,14 +147,14 @@ def create_custom_command(custom_command: CustomCommand):
         channel = ctx.bot.get_channel(custom_command.channel_id) or ctx.channel
         await send_custom_command_message(ctx, custom_command, channel)
 
-    async def cmd_channel(_, ctx: Context, channel: TextChannel):
+    async def cmd_channel(_, ctx: Context, channel: GuildMessageable):
         await send_custom_command_message(ctx, custom_command, channel)
 
     async def cmd_user(_, ctx: Context, user: Optional[User]):
         channel = ctx.bot.get_channel(custom_command.channel_id) or ctx.channel
         await send_custom_command_message(ctx, custom_command, channel, mention_user=user)
 
-    async def cmd_channel_user(_, ctx: Context, channel: TextChannel, user: Optional[User]):
+    async def cmd_channel_user(_, ctx: Context, channel: GuildMessageable, user: Optional[User]):
         await send_custom_command_message(ctx, custom_command, channel, mention_user=user)
 
     if custom_command.channel_parameter:
@@ -471,7 +472,7 @@ class CustomCommandsCog(Cog, name="Custom Commands"):
     @custom_commands_edit.command(name="channel", aliases=["c"])
     @docs(t.commands.edit.channel)
     async def custom_commands_edit_channel(
-        self, ctx: Context, command: CustomCommandConverter, *, channel: TextChannel = None
+        self, ctx: Context, command: CustomCommandConverter, *, channel: GuildMessageable = None
     ):
         command: CustomCommand
 
