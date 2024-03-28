@@ -202,7 +202,7 @@ class MediaOnlyCog(Cog, name="MediaOnly"):
     @MediaOnlyPermission.write.check
     @docs(f"{t.commands.add}\n{t.mode_explanation}")
     async def mediaonly_add(
-        self, ctx: Context, channel: GuildMessageable, mode: int, max_length: int | None, log: bool = False
+        self, ctx: Context, channel: GuildMessageable, mode: int, max_length: int | None = 0, log: bool = False
     ):
         if not 1 <= mode <= 7:
             raise CommandError(t.mode_invalid)
