@@ -29,6 +29,14 @@ class HeartbeatCog(Cog, name="Heartbeat"):
     @tasks.loop(seconds=20)
     async def status_loop(self):
         now = utcnow()
+        with open(Path("health"), "r") as f:
+            data = f.readlines()
+        if data and data[0].strip().isnumeric():
+            data[0] = str(int(datetime.now().timestamp())) + "\n"
+        else:
+            data = [str(int(datetime.now().timestamp())) + "\n"] + data
+        with open(Path("health"), "w+") as f:
+            f.writelines(data)
         for owner in get_owners(self.bot):
             try:
                 await send_editable_log(
@@ -38,14 +46,6 @@ class HeartbeatCog(Cog, name="Heartbeat"):
                     t.heartbeat,
                     format_dt(now, style="D") + " " + format_dt(now, style="T"),
                 )
-                with open(Path("health"), "r") as f:
-                    data = f.readlines()
-                if data and data[0].strip().isnumeric():
-                    data[0] = str(int(datetime.now().timestamp())) + "\n"
-                else:
-                    data = [str(int(datetime.now().timestamp())) + "\n"] + data
-                with open(Path("health"), "w+") as f:
-                    f.writelines(data)
 
             except Forbidden:
                 pass
@@ -67,10 +67,9 @@ class HeartbeatCog(Cog, name="Heartbeat"):
             except Forbidden:
                 pass
 
-        if owners:
-            try:
-                self.status_loop.start()
-            except RuntimeError:
-                self.status_loop.restart()
+        try:
+            self.status_loop.start()
+        except RuntimeError:
+            self.status_loop.restart()
 
         self.initialized = True
