@@ -51,7 +51,8 @@ class AutoClearCog(Cog, name="AutoClear"):
     async def on_ready(self):
         try:
             self.loop.start()
-        except RuntimeError:
+        except Exception as e:
+            print(e)
             self.loop.restart()
 
     @tasks.loop(minutes=5)

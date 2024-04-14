@@ -69,7 +69,8 @@ class HeartbeatCog(Cog, name="Heartbeat"):
 
         try:
             self.status_loop.start()
-        except RuntimeError:
+        except Exception as e:
+            print(e)
             self.status_loop.restart()
 
         self.initialized = True

@@ -142,7 +142,8 @@ class RedditCog(Cog, name="Reddit"):
         self.reddit_loop.change_interval(hours=interval)
         try:
             self.reddit_loop.start()
-        except RuntimeError:
+        except Exception as e:
+            print(e)
             self.reddit_loop.restart()
 
     @commands.group()

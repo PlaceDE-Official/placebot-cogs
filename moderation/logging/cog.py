@@ -162,7 +162,8 @@ class LoggingCog(Cog, name="Logging"):
     async def on_ready(self):
         try:
             self.cleanup_loop.start()
-        except RuntimeError:
+        except Exception as e:
+            print(e)
             self.cleanup_loop.restart()
 
     @tasks.loop(minutes=30)
