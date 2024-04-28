@@ -28,27 +28,30 @@ class HeartbeatCog(Cog, name="Heartbeat"):
 
     @tasks.loop(seconds=20)
     async def status_loop(self):
-        now = utcnow()
-        with open(Path("health"), "r") as f:
-            data = f.readlines()
-        if data and data[0].strip().isnumeric():
-            data[0] = str(int(datetime.now().timestamp())) + "\n"
-        else:
-            data = [str(int(datetime.now().timestamp())) + "\n"] + data
-        with open(Path("health"), "w+") as f:
-            f.writelines(data)
-        for owner in get_owners(self.bot):
-            try:
-                await send_editable_log(
-                    owner,
-                    t.online_status,
-                    t.status_description(Config.NAME, Config.VERSION),
-                    t.heartbeat,
-                    format_dt(now, style="D") + " " + format_dt(now, style="T"),
-                )
+        try:
+            now = utcnow()
+            with open(Path("health"), "r") as f:
+                data = f.readlines()
+            if data and data[0].strip().isnumeric():
+                data[0] = str(int(datetime.now().timestamp())) + "\n"
+            else:
+                data = [str(int(datetime.now().timestamp())) + "\n"] + data
+            with open(Path("health"), "w+") as f:
+                f.writelines(data)
+            for owner in get_owners(self.bot):
+                try:
+                    await send_editable_log(
+                        owner,
+                        t.online_status,
+                        t.status_description(Config.NAME, Config.VERSION),
+                        t.heartbeat,
+                        format_dt(now, style="D") + " " + format_dt(now, style="T"),
+                    )
 
-            except Forbidden:
-                pass
+                except Forbidden:
+                    pass
+        except Exception as e:
+            print(e)
 
     async def on_ready(self):
         owners = get_owners(self.bot)
