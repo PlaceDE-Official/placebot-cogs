@@ -445,11 +445,11 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             self._owners.pop(channel.channel_id, None)
         elif old_owner != new_owner:
             self._owners[channel.channel_id] = new_owner
-            await self.send_voice_msg(channel, t.voice_channel, t.voice_owner_changed(new_owner.mention))
+            await self.send_voice_msg(channel, t.voice_channel, [t.voice_owner_changed(new_owner.mention)])
 
         return new_owner
 
-    async def send_voice_msg(self, channel: DynChannel, title: str, msg: str, force_new_embed: bool = False):
+    async def send_voice_msg(self, channel: DynChannel, title: str, msgs: list[str], force_new_embed: bool = False):
         try:
             voice_channel: VoiceChannel = self.get_voice_channel(channel)
         except CommandError as e:
@@ -457,13 +457,13 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             return
 
         color = int([Colors.unlocked, Colors.locked][channel.locked])
+        now = format_dt(now := utcnow(), style="D") + " " + format_dt(now, style="T")
         try:
             message: Message = await send_editable_log(
                 voice_channel,
                 title,
                 "",
-                format_dt(now := utcnow(), style="D") + " " + format_dt(now, style="T"),
-                msg,
+                [(now, line) for line in msgs],
                 colour=color,
                 force_new_embed=force_new_embed,
                 force_new_field=True,
@@ -631,9 +631,9 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             raise CommandError(t.could_not_overwrite_permissions(text_channel.mention))
 
         if hide:
-            await self.send_voice_msg(channel, t.voice_channel, t.hidden(member.mention), force_new_embed=not locked)
+            await self.send_voice_msg(channel, t.voice_channel, [t.hidden(member.mention)], force_new_embed=not locked)
         else:
-            await self.send_voice_msg(channel, t.voice_channel, t.locked(member.mention), force_new_embed=True)
+            await self.send_voice_msg(channel, t.voice_channel, [t.locked(member.mention)], force_new_embed=True)
 
     async def unlock_channel(
         self, member: Member | None, channel: DynChannel, voice_channel: VoiceChannel, *, skip_text: bool = False
@@ -668,65 +668,75 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         except Forbidden:
             raise CommandError(t.could_not_overwrite_permissions(text_channel.mention))
 
-        await self.send_voice_msg(channel, t.voice_channel, t.unlocked(member.mention), force_new_embed=True)
+        await self.send_voice_msg(channel, t.voice_channel, [t.unlocked(member.mention)], force_new_embed=True)
 
     async def change_channel_ping(self, member: Member, channel: DynChannel, *, no_ping: bool):
         channel.no_ping = no_ping
         if no_ping:
-            await self.send_voice_msg(channel, t.voice_channel, t.pings_disabled(member.mention))
+            await self.send_voice_msg(channel, t.voice_channel, [t.pings_disabled(member.mention)])
         else:
-            await self.send_voice_msg(channel, t.voice_channel, t.pings_enabled(member.mention))
+            await self.send_voice_msg(channel, t.voice_channel, [t.pings_enabled(member.mention)])
 
     async def unhide_channel(self, member: Member, channel: DynChannel, voice_channel: VoiceChannel):
         user_role = voice_channel.guild.get_role(channel.group.user_role)
 
         try:
-            await voice_channel.set_permissions(user_role, view_channel=True, connect=False)
+            await voice_channel.set_permissions(user_role, view_channel=True, connect=False, use_activites=True)
         except Forbidden:
             raise CommandError(t.could_not_overwrite_permissions(voice_channel.mention))
 
-        await self.send_voice_msg(channel, t.voice_channel, t.visible(member.mention))
+        await self.send_voice_msg(channel, t.voice_channel, [t.visible(member.mention)])
 
-    async def add_to_channel(self, channel: DynChannel, voice_channel: VoiceChannel, member: Member):
-        overwrite = PermissionOverwrite(view_channel=True, connect=True, send_messages=True, add_reactions=True)
+    async def add_to_channel(self, channel: DynChannel, voice_channel: VoiceChannel, members: set[Member]):
+        overwrites = [
+            (member, PermissionOverwrite(view_channel=True, connect=True, send_messages=True, add_reactions=True))
+            for member in members
+        ]
         try:
-            await voice_channel.set_permissions(member, overwrite=overwrite)
+            await voice_channel.edit(overwrites=merge_permission_overwrites(voice_channel.overwrites, *overwrites))
         except Forbidden:
             raise CommandError(t.could_not_overwrite_permissions(voice_channel.mention))
 
         if text_channel := self.get_text_channel(channel):
             try:
-                await text_channel.set_permissions(member, overwrite=overwrite)
+                await text_channel.edit(overwrites=merge_permission_overwrites(text_channel.overwrites, *overwrites))
             except Forbidden:
                 raise CommandError(t.could_not_overwrite_permissions(text_channel.mention))
 
-        await self.send_voice_msg(channel, t.voice_channel, t.user_added(member.mention))
+        await self.send_voice_msg(channel, t.voice_channel, [t.user_added(member.mention) for member in members])
 
-    async def remove_from_channel(self, channel: DynChannel, voice_channel: VoiceChannel, member: Member):
+    async def remove_from_channel(self, channel: DynChannel, voice_channel: VoiceChannel, members: list[Member]):
+        overwrites = [
+            (member, PermissionOverwrite(view_channel=None, connect=False, send_messages=False, add_reactions=False))
+            for member in members
+        ]
         try:
-            await voice_channel.set_permissions(member, overwrite=None)
+            await voice_channel.edit(overwrites=merge_permission_overwrites(voice_channel.overwrites, *overwrites))
         except Forbidden:
             raise CommandError(t.could_not_overwrite_permissions(voice_channel.mention))
 
         if text_channel := self.get_text_channel(channel):
             try:
-                await text_channel.set_permissions(member, overwrite=None)
+                await text_channel.edit(overwrites=merge_permission_overwrites(text_channel.overwrites, *overwrites))
             except Forbidden:
                 raise CommandError(t.could_not_overwrite_permissions(text_channel.mention))
 
-        await db.exec(delete(DynChannelMember).filter_by(channel_id=voice_channel.id, member_id=member.id))
-        is_owner = member == await self.get_owner_from_cache(channel)
-        if member.voice and member.voice.channel == voice_channel:
-            try:
-                await member.move_to(None)
-            except Forbidden:
-                await send_alert(member.guild, t.could_not_kick(member.mention, voice_channel.mention))
-                is_owner = False
-            else:
-                self._recent_kicks.add((member, voice_channel))
+        is_owner_flag = False
+        for member in members:
+            await db.exec(delete(DynChannelMember).filter_by(channel_id=voice_channel.id, member_id=member.id))
+            is_owner = member == await self.get_owner_from_cache(channel)
+            if member.voice and member.voice.channel == voice_channel:
+                try:
+                    await member.move_to(None)
+                except Forbidden:
+                    await send_alert(member.guild, t.could_not_kick(member.mention, voice_channel.mention))
+                    is_owner = False
+                else:
+                    self._recent_kicks.add((member, voice_channel))
+            is_owner_flag = is_owner_flag or is_owner
 
-        await self.send_voice_msg(channel, t.voice_channel, t.user_removed(member.mention))
-        if is_owner:
+        await self.send_voice_msg(channel, t.voice_channel, [t.user_removed(member.mention) for member in members])
+        if is_owner_flag:
             await self.fix_owner(channel)
 
     async def create_text_channel(
@@ -825,7 +835,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                         read_messages=True, connect=True, send_messages=True, add_reactions=True
                     ),
                 )
-            await self.send_voice_msg(dyn_channel, t.voice_channel, t.dyn_voice_joined(member.mention))
+            await self.send_voice_msg(dyn_channel, t.voice_channel, [t.dyn_voice_joined(member.mention)])
 
             # add member permissions
             if dyn_channel.locked and member not in voice_channel.overwrites:
@@ -861,11 +871,24 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 text_channel: TextChannel | None = self.bot.get_channel(dyn_channel.text_id)
                 if text_channel:
                     try:
-                        await text_channel.set_permissions(member, overwrite=None)
+                        await text_channel.edit(
+                            overwrites=merge_permission_overwrites(
+                                text_channel.overwrites,
+                                (
+                                    member,
+                                    PermissionOverwrite(read_messages=None, send_messages=None, add_reactions=None),
+                                ),
+                            )
+                        )
                     except Forbidden:
                         await send_alert(voice_channel.guild, t.could_not_overwrite_permissions(text_channel.mention))
-                await voice_channel.set_permissions(member, overwrite=None)
-            await self.send_voice_msg(dyn_channel, t.voice_channel, t.dyn_voice_left(member.mention))
+                await voice_channel.edit(
+                    overwrites=merge_permission_overwrites(
+                        voice_channel.overwrites,
+                        (member, PermissionOverwrite(read_messages=None, send_messages=None, add_reactions=None)),
+                    )
+                )
+            await self.send_voice_msg(dyn_channel, t.voice_channel, [t.dyn_voice_left(member.mention)])
 
             owner: DynChannelMember | None = await db.get(DynChannelMember, id=dyn_channel.owner_id)
             if owner and owner.member_id == member.id or dyn_channel.owner_override == member.id:
@@ -1226,6 +1249,13 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             name = t.voice_members.unlocked(cnt=len(members))
         embed.add_field(name=name, value="\n".join(out), inline=False)
 
+        out = []
+        for m, p in voice_channel.overwrites.items():
+            if not p.connect and isinstance(m, Member):
+                out.append(f":x: {m.mention}")
+        if out:
+            embed.add_field(name=t.voice_members.blacklisted(cnt=len(out)), value="\n".join(out), inline=False)
+
         messages = await send_long_embed(target, embed, paginate=True)
         if isinstance(target, InteractionResponse):
             return
@@ -1257,7 +1287,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         except HTTPException:
             raise CommandError(t.rename_failed)
 
-        await self.send_voice_msg(channel, t.voice_channel, t.renamed(ctx.author.mention, old_name, name))
+        await self.send_voice_msg(channel, t.voice_channel, [t.renamed(ctx.author.mention, old_name, name)])
         await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
 
     @voice.command(name="create_text_channel", aliases=["ctc", "tc"])
@@ -1424,18 +1454,17 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         if not members:
             raise UserInputError
 
-        channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True, check_locked=True)
+        channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True, check_locked=False)
 
         async with channel_locks[channel.channel_id]:
             if self.bot.user in members:
                 raise CommandError(t.cannot_add_user(self.bot.user.mention))
 
-            for member in members:
-                await self.add_to_channel(channel, voice_channel, member)
+            await self.add_to_channel(channel, voice_channel, members)
 
             await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
 
-    @voice.command(name="remove", aliases=["r", "-", "kick", "k"])
+    @voice.command(name="remove", aliases=["r", "-", "kick", "k", "blacklist", "bl"])
     @optional_permissions(VoiceChannelPermission.override_owner)
     @docs(t.commands.voice_remove)
     async def voice_remove(self, ctx: Context, *members: Greedy[Member]):
@@ -1443,7 +1472,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         if not members:
             raise UserInputError
 
-        channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True, check_locked=True)
+        channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True, check_locked=False)
 
         async with channel_locks[channel.channel_id]:
             if self.bot.user in members:
@@ -1458,13 +1487,12 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 if check_voice_permissions(voice_channel, team_role)
             ]
             for member in members:
-                if member not in voice_channel.overwrites:
-                    raise CommandError(t.not_added(member.mention))
+                # if member not in voice_channel.overwrites:
+                #     raise CommandError(t.not_added(member.mention))
                 if any(role in member.roles for role in team_roles):
                     raise CommandError(t.cannot_remove_user(member.mention))
 
-            for member in members:
-                await self.remove_from_channel(channel, voice_channel, member)
+            await self.remove_from_channel(channel, voice_channel, members)
 
             await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
 

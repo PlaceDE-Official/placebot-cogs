@@ -44,8 +44,7 @@ class HeartbeatCog(Cog, name="Heartbeat"):
                         owner,
                         t.online_status,
                         t.status_description(Config.NAME, Config.VERSION),
-                        t.heartbeat,
-                        format_dt(now, style="D") + " " + format_dt(now, style="T"),
+                        [(t.heartbeat, format_dt(now, style="D") + " " + format_dt(now, style="T"))],
                     )
 
                 except Forbidden:
@@ -62,8 +61,7 @@ class HeartbeatCog(Cog, name="Heartbeat"):
                     owner,
                     t.online_status,
                     t.status_description(Config.NAME, Config.VERSION),
-                    t.logged_in,
-                    format_dt(now, style="D") + " " + format_dt(now, style="T"),
+                    [(t.logged_in, format_dt(now, style="D") + " " + format_dt(now, style="T"))],
                     force_resend=True,
                     force_new_embed=not self.initialized,
                 )

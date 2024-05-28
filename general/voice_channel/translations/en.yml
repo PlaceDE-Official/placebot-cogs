@@ -28,7 +28,7 @@ commands:
   voice_show: unhide a dynamic voice channel
   voice_unlock: unlock a dynamic voice channel
   voice_add: add a member to a dynamic voice channel
-  voice_remove: remove a member from a dynamic voice channel
+  voice_remove: kick and blacklist a member from a dynamic voice channel
   voice_link: manage links between voice channels and roles
   voice_link_add: link a voice channel with a role
   voice_link_remove: delete the link between a voice channel and a role
@@ -73,7 +73,7 @@ dyn_voice_help_content: |
   :eye: `{prefix}vc show` - unhide this voice channel
   :unlock: `{prefix}vc unlock` - unlock and unhide this voice channel
   :white_check_mark: `{prefix}vc add <member>` - add a member to this voice channel
-  :x: `{prefix}vc remove <member>` - kick and remove a member from this voice channel
+  :x: `{prefix}vc remove <member>` - kick and blacklist a member from this voice channel
   :label: `{prefix}vc rename [<name>]` - rename this voice channel
   :memo: `{prefix}vc create_text_channel` - create a text channel for this voice chat
   :tools: `{prefix}vc owner <member>` - transfer ownership of your voice channel
@@ -195,6 +195,9 @@ voice_members:
   unlocked:
     one: "{cnt} Member"
     many: "{cnt} Members"
+  blacklisted:
+    one: "Blacklisted: {cnt} Member"
+    many: "Blacklisted: {cnt} Members"
   locked:
     one: "{}/{cnt} Member"
     many: "{}/{cnt} Members"
