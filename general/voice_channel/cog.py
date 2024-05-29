@@ -830,10 +830,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
             if not dyn_channel.locked:
                 await voice_channel.set_permissions(
-                    member,
-                    overwrite=PermissionOverwrite(
-                        read_messages=True, connect=True, send_messages=True, add_reactions=True
-                    ),
+                    member, overwrite=PermissionOverwrite(send_messages=True, add_reactions=True)
                 )
             await self.send_voice_msg(dyn_channel, t.voice_channel, [t.dyn_voice_joined(member.mention)])
 
@@ -884,8 +881,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                         await send_alert(voice_channel.guild, t.could_not_overwrite_permissions(text_channel.mention))
                 await voice_channel.edit(
                     overwrites=merge_permission_overwrites(
-                        voice_channel.overwrites,
-                        (member, PermissionOverwrite(read_messages=None, send_messages=None, add_reactions=None)),
+                        voice_channel.overwrites, (member, PermissionOverwrite(send_messages=None, add_reactions=None))
                     )
                 )
             await self.send_voice_msg(dyn_channel, t.voice_channel, [t.dyn_voice_left(member.mention)])
@@ -1251,7 +1247,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
         out = []
         for m, p in voice_channel.overwrites.items():
-            if not p.connect and isinstance(m, Member):
+            if p.connect is False and isinstance(m, Member):
                 out.append(f":x: {m.mention}")
         if out:
             embed.add_field(name=t.voice_members.blacklisted(cnt=len(out)), value="\n".join(out), inline=False)
