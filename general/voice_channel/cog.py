@@ -687,7 +687,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
         await self.send_voice_msg(channel, t.voice_channel, [t.visible(member.mention)])
 
-    async def add_to_channel(self, channel: DynChannel, voice_channel: VoiceChannel, members: set[Member]):
+    async def add_to_channel(self, channel: DynChannel, voice_channel: VoiceChannel, members: list[Member]):
         overwrites = [
             (member, PermissionOverwrite(view_channel=True, connect=True, send_messages=True, add_reactions=True))
             for member in members
@@ -840,7 +840,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             # add member permissions
             if dyn_channel.locked and member not in voice_channel.overwrites:
                 try:
-                    await self.add_to_channel(dyn_channel, voice_channel, member)
+                    await self.add_to_channel(dyn_channel, voice_channel, [member])
                 except CommandError as e:
                     await send_alert(voice_channel.guild, *e.args)
 
@@ -1439,7 +1439,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 )
             try:
                 if add:
-                    await self.add_to_channel(dyn_channel, voice_channel, ctx.author)
+                    await self.add_to_channel(dyn_channel, voice_channel, [ctx.author])
                     await ctx.reply(t.request_approved)
                 else:
                     await ctx.reply(t.request_denied)
@@ -1460,7 +1460,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             if self.bot.user in members:
                 raise CommandError(t.cannot_add_user(self.bot.user.mention))
 
-            await self.add_to_channel(channel, voice_channel, members)
+            await self.add_to_channel(channel, voice_channel, list(members))
 
             await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
 
@@ -1492,7 +1492,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 if any(role in member.roles for role in team_roles):
                     raise CommandError(t.cannot_remove_user(member.mention))
 
-            await self.remove_from_channel(channel, voice_channel, members)
+            await self.remove_from_channel(channel, voice_channel, list(members))
 
             await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
 
