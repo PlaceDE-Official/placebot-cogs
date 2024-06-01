@@ -137,20 +137,22 @@ def remove_lock_overrides(
     *,
     keep_members: bool,
     reset_user_role: bool,
+    keep_denied: bool = False,
 ) -> Overwrites:
     me = voice_channel.guild.me
-    overwrites = {
-        k: v
-        for k, v in overwrites.items()
-        if not isinstance(k, Member) or k == me or (keep_members and k in voice_channel.members)
-    }
+    overwrites_new = {}
+    for k, v in overwrites.items():
+        if not isinstance(k, Member) or k == me or (keep_members and k in voice_channel.members):
+            overwrites_new.update({k: v})
+        elif keep_denied:
+            overwrites_new.update({k: PermissionOverwrite.from_pair(*v.pair()[1])})
     if not reset_user_role:
-        return overwrites
+        return overwrites_new
 
     user_role = voice_channel.guild.get_role(channel.group.user_role)
-    overwrites = merge_permission_overwrites(overwrites, (user_role, PermissionOverwrite(view_channel=True)))
-    overwrites[user_role].update(connect=None)
-    return overwrites
+    overwrites_new = merge_permission_overwrites(overwrites_new, (user_role, PermissionOverwrite(view_channel=True)))
+    overwrites_new[user_role].update(connect=None)
+    return overwrites_new
 
 
 async def safe_create_voice_channel(
@@ -640,7 +642,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
     ):
         channel.locked = False
         overwrites = remove_lock_overrides(
-            channel, voice_channel, voice_channel.overwrites, keep_members=False, reset_user_role=True
+            channel, voice_channel, voice_channel.overwrites, keep_members=False, reset_user_role=True, keep_denied=True
         )
         overwrites = merge_permission_overwrites(
             overwrites,
@@ -662,7 +664,12 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             if text_channel := self.get_text_channel(channel):
                 await text_channel.edit(
                     overwrites=remove_lock_overrides(
-                        channel, voice_channel, text_channel.overwrites, keep_members=True, reset_user_role=False
+                        channel,
+                        voice_channel,
+                        text_channel.overwrites,
+                        keep_members=True,
+                        reset_user_role=False,
+                        keep_denied=True,
                     )
                 )
         except Forbidden:
@@ -681,7 +688,9 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         user_role = voice_channel.guild.get_role(channel.group.user_role)
 
         try:
-            await voice_channel.set_permissions(user_role, view_channel=True, connect=False, use_activites=True)
+            await voice_channel.set_permissions(
+                user_role, view_channel=True, connect=False, start_embedded_activities=True
+            )
         except Forbidden:
             raise CommandError(t.could_not_overwrite_permissions(voice_channel.mention))
 
@@ -1226,7 +1235,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
         active = members = set(voice_channel.members)
         if dyn_channel.locked:
-            members = {m for m in voice_channel.overwrites if isinstance(m, Member)}
+            members = {m for m, p in voice_channel.overwrites.items() if isinstance(m, Member) and p.connect}
 
         join_map = {m.member_id: m.timestamp.timestamp() for m in dyn_channel.members}
         members = sorted(
@@ -1410,7 +1419,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         )
         if ctx.author.voice and ctx.author.voice.channel.id == channel.id:
             raise CommandError(t.already_in_channel)
-        if ctx.author in voice_channel.overwrites:
+        if (ow := voice_channel.overwrites.get(ctx.author)) and ow.connect:
             raise CommandError(t.already_whitelisted)
 
         if ctx.author.id in join_requests.locks:
