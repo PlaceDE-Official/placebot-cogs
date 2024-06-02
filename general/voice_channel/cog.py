@@ -17,6 +17,7 @@ from discord import (
     Message,
     NotFound,
     PermissionOverwrite,
+    Permissions,
     Role,
     TextChannel,
     VoiceChannel,
@@ -145,7 +146,7 @@ def remove_lock_overrides(
         if not isinstance(k, Member) or k == me or (keep_members and k in voice_channel.members):
             overwrites_new.update({k: v})
         elif keep_denied:
-            overwrites_new.update({k: PermissionOverwrite.from_pair(*v.pair()[1])})
+            overwrites_new.update({k: PermissionOverwrite.from_pair(allow=Permissions.none(), deny=v.pair()[1])})
     if not reset_user_role:
         return overwrites_new
 
