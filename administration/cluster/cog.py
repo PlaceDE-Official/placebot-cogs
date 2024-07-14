@@ -14,6 +14,7 @@ from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.emojis import name_to_emoji
 from PyDrocsid.environment import CLUSTER_NODE
 from PyDrocsid.translations import t
+from cluster import sort_nodes, HEARTBEAT_TIMEOUT
 from .colors import Colors
 from .permissions import ClusterPermission
 from ...contributor import Contributor
@@ -45,19 +46,20 @@ class ClusterCog(Cog, name="Cluster"):
             "disabled": ["", ":no_entry:"],
             "healthy": [":x:", ":white_check_mark:"]
         }
-        async for node in await db.stream(select(ClusterNode)):
+        for node in await sort_nodes(await db.all(select(ClusterNode))):
+            healthy = node.timestamp + timedelta(seconds=HEARTBEAT_TIMEOUT) >= utcnow()
             value = [
                 # first line
                 t.info_embed.bot + ": " +
-                emoji_map["healthy"][node.timestamp + timedelta(seconds=2) >= utcnow()] +
-                emoji_map["active"][node.active] +
+                emoji_map["healthy"][healthy] +
+                ["", emoji_map["active"][node.active]][healthy] +
                 emoji_map["transferring"][node.transferring] +
                 emoji_map["disabled"][node.disabled],
 
                 t.info_embed.last_ping + f": <t:{int(node.timestamp.timestamp())}:R>",
                 t.info_embed.version + f": `v{Config.VERSION}`"
             ]
-            embed.add_field(name=node.node_name, value="\n".join(value), inline=False)
+            embed.add_field(name=node.node_name, value="\n".join(filter(lambda x: x, value)), inline=False)
 
         embed.add_field(name="** **", value=t.info_embed.explanation, inline=False)
 
