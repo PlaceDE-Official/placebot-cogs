@@ -8,6 +8,7 @@ from discord.utils import utcnow
 from PyDrocsid.cluster_model import ClusterNode
 from PyDrocsid.cog import Cog
 from PyDrocsid.command import docs
+from PyDrocsid.config import Config
 from PyDrocsid.database import db, select
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.emojis import name_to_emoji
@@ -53,7 +54,8 @@ class ClusterCog(Cog, name="Cluster"):
                 emoji_map["transferring"][node.transferring] +
                 emoji_map["disabled"][node.disabled],
 
-                t.info_embed.last_ping + f": <t:{int(node.timestamp.timestamp())}:R>"
+                t.info_embed.last_ping + f": <t:{int(node.timestamp.timestamp())}:R>",
+                t.info_embed.version + f": `v{Config.VERSION}`"
             ]
             embed.add_field(name=node.node_name, value="\n".join(value), inline=False)
 

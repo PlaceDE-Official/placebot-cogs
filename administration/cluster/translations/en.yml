@@ -30,6 +30,7 @@ cluster: Cluster Information
 info_embed:
   bot: Bot
   last_ping: Last Ping
+  version: Version
   explanation: |
     -# **Explanation:**
     -# Activity:
