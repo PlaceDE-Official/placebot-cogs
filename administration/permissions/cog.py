@@ -12,6 +12,7 @@ from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.permission import BasePermission, BasePermissionLevel
 from PyDrocsid.settings import RoleSettings
 from PyDrocsid.translations import t
+from PyDrocsid.redis_client import redis
 
 from .colors import Colors
 from .permissions import PermissionsPermission
@@ -64,6 +65,12 @@ class PermissionLevelConverter(Converter):
 
 class PermissionsCog(Cog, name="Permissions"):
     CONTRIBUTORS = [Contributor.Defelo, Contributor.wolflu]
+
+    async def on_ready(self):
+        pipe = redis.pipeline()
+        async for key in redis.scan_iter("permissions:*"):
+            pipe.delete(key)
+        await pipe.execute()
 
     @commands.group(aliases=["perm", "p"])
     @guild_only()
