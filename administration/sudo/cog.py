@@ -1,5 +1,9 @@
+import asyncio
+import multiprocessing
+import subprocess
 import sys
 import threading
+import time
 
 from discord import CheckFailure, CustomActivity, Embed, Member, Message, Status
 from discord.ext import commands
@@ -148,7 +152,7 @@ class SudoCog(Cog, name="Sudo"):
             embed = Embed(color=MaterialColors.error, title=tg.bot_mode_change, description=message)
             await owner.send(embed=embed)
         logger.warning(message)
-        write_status(message)
+        await write_status(message, BotMode.STOPPED)
         await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
         await self.bot.close()
 
@@ -159,14 +163,11 @@ class SudoCog(Cog, name="Sudo"):
         Kills the bot immediately.
         """
 
-        def kill_thread_func():
-            Config.BOT_MODE = BotMode.KILLED
-            message = get_mode_change_message(ctx)
-            logger.warning(message)
-            write_status(message)
+        Config.BOT_MODE = BotMode.KILLED
+        message = get_mode_change_message(ctx)
+        logger.warning(message)
+        await write_status(message, BotMode.KILLED)
 
-        th = threading.Thread(target=kill_thread_func)
-        th.start()
         sys.exit(1)
 
     @sudo.command()
@@ -182,7 +183,7 @@ class SudoCog(Cog, name="Sudo"):
         for owner in get_owners(self.bot):
             await owner.send(embed=embed)
         logger.warning(message)
-        write_status(message)
+        await write_status(message, Config.BOT_MODE)
 
         if Config.BOT_MODE.bot_activity:
             await ctx.bot.change_presence(

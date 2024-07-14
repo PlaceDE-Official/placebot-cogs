@@ -1,0 +1,40 @@
+permissions:
+  read: Show status of the bot cluster
+  transfer: Transfer bot from one node to another
+  disable: Disable a cluster node
+
+commands:
+  cluster: |
+    Manage the bot cluster
+    
+    Running this without a subcommand will display the current status of the cluster.
+  disable: |
+    Disable a node
+    
+    This will **not** transfer the bot over to another node!
+  transfer: |
+    Transfer the bot to another node
+    
+    The node which will take the bot is determined by the scheduling algorithm.
+    This will not "disable" the node running the bot right now! 
+
+node_non_existing: The given node does not exist!
+node_disable:
+  already_disabled: The given node is already disabled!
+  already_enabled: The given node is already enabled!
+no_ready_node: There is no node which can take the bot right now; transfer aborted!
+self_not_found: Could not initiate transfer; could not find myself in the database!
+already_transferring: Transfer already in progress!
+
+cluster: Cluster Information
+info_embed:
+  bot: Bot
+  last_ping: Last Ping
+  explanation: |
+    -# **Explanation:**
+    -# Activity:
+    -# :ballot_box_with_check: Active :hourglass: Idling
+    -# Extra status:
+    -# :twisted_rightwards_arrows: Transferring :no_entry: Disabled
+    -# Online status:
+    -# :white_check_mark: Online :x: Offline

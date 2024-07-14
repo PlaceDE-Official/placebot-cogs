@@ -8,8 +8,9 @@ from discord.utils import format_dt, utcnow
 
 from PyDrocsid.cog import Cog
 from PyDrocsid.config import Config
+from PyDrocsid.environment import CLUSTER_NODE
 from PyDrocsid.translations import t
-from PyDrocsid.util import get_owners, send_editable_log
+from PyDrocsid.util import get_owners, send_editable_log, write_healthcheck
 
 from ...contributor import Contributor
 
@@ -30,19 +31,12 @@ class HeartbeatCog(Cog, name="Heartbeat"):
     async def status_loop(self):
         try:
             now = utcnow()
-            with open(Path("health"), "r") as f:
-                data = f.readlines()
-            if data and data[0].strip().isnumeric():
-                data[0] = str(int(datetime.now().timestamp())) + "\n"
-            else:
-                data = [str(int(datetime.now().timestamp())) + "\n"] + data
-            with open(Path("health"), "w+") as f:
-                f.writelines(data)
+            write_healthcheck()
             for owner in get_owners(self.bot):
                 try:
                     await send_editable_log(
                         owner,
-                        t.online_status,
+                        t.online_status_cluster(CLUSTER_NODE) if CLUSTER_NODE else t.online_status,
                         t.status_description(Config.NAME, Config.VERSION),
                         [(t.heartbeat, format_dt(now, style="D") + " " + format_dt(now, style="T"))],
                     )
@@ -59,7 +53,7 @@ class HeartbeatCog(Cog, name="Heartbeat"):
             try:
                 await send_editable_log(
                     owner,
-                    t.online_status,
+                    t.online_status_cluster(CLUSTER_NODE) if CLUSTER_NODE else t.online_status,
                     t.status_description(Config.NAME, Config.VERSION),
                     [(t.logged_in, format_dt(now, style="D") + " " + format_dt(now, style="T"))],
                     force_resend=True,

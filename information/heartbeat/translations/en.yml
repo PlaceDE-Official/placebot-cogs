@@ -1,4 +1,5 @@
 online_status: ":vertical_traffic_light: Online Status"
+online_status_cluster: ":vertical_traffic_light: Online Status for Node \"{}\""
 status_description: ":label: **{} v{}**"
 logged_in: ":robot: Logged in"
 heartbeat: ":heartbeat: Heartbeat"
