@@ -41,7 +41,7 @@ class ClusterCog(Cog, name="Cluster"):
         emoji_map = {
             "active": [":hourglass:", ":ballot_box_with_check:"],
             "transferring": ["", ":twisted_rightwards_arrows:"],
-            "deactivated": ["", ":no_entry:"],
+            "disabled": ["", ":no_entry:"],
             "healthy": [":x:", ":white_check_mark:"]
         }
         async for node in await db.stream(select(ClusterNode)):
@@ -51,7 +51,7 @@ class ClusterCog(Cog, name="Cluster"):
                 emoji_map["healthy"][node.timestamp + timedelta(seconds=2) >= utcnow()] +
                 emoji_map["active"][node.active] +
                 emoji_map["transferring"][node.transferring] +
-                emoji_map["deactivated"][node.disabled],
+                emoji_map["disabled"][node.disabled],
 
                 t.info_embed.last_ping + f": <t:{int(node.timestamp.timestamp())}:R>"
             ]
