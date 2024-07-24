@@ -22,7 +22,7 @@ from discord import (
     TextChannel,
     VoiceChannel,
     VoiceState,
-    ui,
+    ui, RawAuditLogEntryEvent, AuditLogEntry, AuditLogAction,
 )
 from discord.abc import Messageable
 from discord.ext import commands, tasks
@@ -42,12 +42,13 @@ from PyDrocsid.prefix import get_prefix
 from PyDrocsid.redis_client import redis
 from PyDrocsid.settings import RoleSettings
 from PyDrocsid.translations import t
+from PyDrocsid.types import GuildMessageable
 from PyDrocsid.util import DynamicVoiceConverter, check_role_assignable, escape_codeblock, send_editable_log
 
 from .colors import Colors
 from .models import AllowedChannelName, DynChannel, DynChannelMember, DynGroup, RoleVoiceLink
 from .permissions import VoiceChannelPermission
-from .settings import DynamicVoiceSettings
+from .settings import DynamicVoiceSettings, VoiceChannelSettings
 from ...contributor import Contributor
 from ...pubsub import send_alert, send_to_changelog
 
@@ -487,7 +488,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 pass
 
         if (msg := await redis.get(key := f"dynvc_control_message:{channel.text_id}")) and msg != str(message.id):
-            asyncio.create_task(clear_view(msg))
+            await asyncio.create_task(clear_view(msg))
 
         await redis.setex(key, 86400, message.id)
 
@@ -589,6 +590,54 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         except Exception as e:
             print(e)
             self.vc_loop.restart()
+
+    async def on_raw_audit_log_entry(self, entry: RawAuditLogEntryEvent):
+        if entry.action_type == AuditLogAction.voice_channel_status_delete:
+            channel_id = int(entry.extra['channel_id'])
+            if db_channel := await db.get(DynChannel, [DynChannel.group, DynGroup.channels], DynChannel.members, channel_id=channel_id):
+                async with channel_locks[channel_id]:
+                    await self.send_voice_msg(
+                        db_channel, t.voice_channel, [t.channel_status_deleted(f"<@{entry.user_id}>")]
+                    )
+            if channel := await VoiceChannelSettings.vc_status_logchannel.get():
+                try:
+                    await self.bot.get_channel(channel).send(
+                        embed=Embed(
+                            colour=Colors.Voice,
+                            title=t.voice_channel,
+                            description=t.log_channel_status_deleted(
+                                f"<@{entry.user_id}>",
+                                f"<#{entry.extra['channel_id']}>",
+                                channel_id
+                            )
+                        ))
+                except Forbidden:
+                    logger.warning(f"Could not sent vc status update in {channel_id}")
+        if entry.action_type == AuditLogAction.voice_channel_status_update:
+            channel_id = int(entry.extra['channel_id'])
+            if db_channel := await db.get(DynChannel, [DynChannel.group, DynGroup.channels], DynChannel.members, channel_id=channel_id):
+                async with channel_locks[channel_id]:
+                    await self.send_voice_msg(
+                        db_channel, t.voice_channel, [t.channel_status_set(
+                            f"<@{entry.user_id}>",
+                            entry.extra["status"]
+                        )]
+                    )
+            if channel := await VoiceChannelSettings.vc_status_logchannel.get():
+                try:
+                    await self.bot.get_channel(channel).send(
+                        embed=Embed(
+                            colour=Colors.Voice,
+                            title=t.voice_channel,
+                            description=t.log_channel_status_set(
+                                f"<@{entry.user_id}>",
+                                f"<#{entry.extra['channel_id']}>",
+                                channel_id,
+                                entry.extra["status"]
+                            )
+                        ))
+                except Forbidden:
+                    logger.warning(f"Could not sent vc status update in {channel_id}")
 
     @tasks.loop(minutes=30)
     @db_wrapper
@@ -1015,6 +1064,30 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
     async def voice(self, ctx: Context):
         if ctx.invoked_subcommand is None:
             raise UserInputError
+
+    @voice.command()
+    @VoiceChannelPermission.vcstatus_logchannel.check
+    async def vcstatus_logchannel(self, ctx: Context, disable: bool = False, channel: GuildMessageable | None = None):
+        """
+        Set the TextChannel, where status updates for voice channels are logged.
+        """
+
+        embed = Embed(title=t.voice_channel, colour=Colors.Voice)
+        if disable:
+            await VoiceChannelSettings.vc_status_logchannel.set(0)
+            embed.description = t.log_status_log_channel_disabled
+            await send_to_changelog(ctx.guild, t.log_status_log_channel_disabled)
+        else:
+            if channel:
+                await VoiceChannelSettings.vc_status_logchannel.set(channel.id)
+                embed.description = t.log_status_log_channel_set(channel.mention)
+                await send_to_changelog(ctx.guild, t.log_status_log_channel_set(channel.mention))
+            else:
+                if channel_id := await VoiceChannelSettings.vc_status_logchannel.get():
+                    embed.description = t.status_log_channel(f"<#{channel_id}>")
+                else:
+                    embed.description = t.status_log_channel_disabled
+        await reply(ctx, embed=embed)
 
     @voice.group(name="dynamic", aliases=["dyn", "d"])
     @VoiceChannelPermission.dyn_read.check

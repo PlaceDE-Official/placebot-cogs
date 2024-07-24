@@ -96,6 +96,14 @@ user_not_in_this_channel: User is not in the same private voice channel.
 bot_no_owner_transfer: You cannot transfer ownership to a bot.
 already_owner: "{} is already the owner of this voice channel."
 voice_owner_changed: ":tools: {} is now the owner of this voice channel."
+channel_status_set: ":placard: {} set the status of this voice channel to \"{}\"."
+channel_status_deleted: ":placard: {} removed the status of this voice channel."
+log_channel_status_set: ":placard: {} set the status of the voice channel {} (`{}`) to \"{}\"."
+log_channel_status_deleted: ":placard: {} removed the status the voice channel {} (`{}`)."
+status_log_channel: "Status updates are logged into: {}."
+status_log_channel_disabled: "Status updates are not logged."
+log_status_log_channel_set: "Status updates **are now logged** into: {}."
+log_status_log_channel_disabled: "Status updates **no longer logged**."
 voice_channel: Voice Channel
 already_locked: This voice channel is already locked.
 already_hidden: This voice channel is already hidden.
