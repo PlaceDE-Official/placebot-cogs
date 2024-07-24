@@ -56,8 +56,8 @@ class ClusterCog(Cog, name="Cluster"):
                 emoji_map["transferring"][node.transferring] +
                 emoji_map["disabled"][node.disabled],
 
-                t.info_embed.last_ping + f": <t:{int(node.timestamp.timestamp())}:R>",
-                t.info_embed.version + f": `v{Config.VERSION}`"
+                t.info_embed.last_ping + f": <t:{int(node.timestamp.timestamp())}:R>"
+                #t.info_embed.version + f": `v{Config.VERSION}`"
             ]
             embed.add_field(name=node.node_name, value="\n".join(filter(lambda x: x, value)), inline=False)
 
