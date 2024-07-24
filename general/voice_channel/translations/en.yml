@@ -10,6 +10,7 @@ permissions:
   dyn_whitelist_check: check if a name is whitelisted for dynamic vcs
   dyn_whitelist_check_parts: split an allowed name into its allowed parts
   dyn_whitelist_list: list all names on the custom whitelist for dynamic vcs
+  vcstatus_logchannel: view and set log channel for status updates
 
 commands:
   voice: manage voice channels
