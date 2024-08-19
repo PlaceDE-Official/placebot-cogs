@@ -236,8 +236,9 @@ class MessageCog(Cog, name="Message Commands"):
             raise CommandError(t.discohook_multiple_messages)
 
         content, embeds = messages[0]
-        if len(embeds) > 1:
-            raise CommandError(t.discohook_multiple_embeds)
+        # why did this exist?
+        #if len(embeds) > 1:
+         #   raise CommandError(t.discohook_multiple_embeds)
 
         try:
             await message.edit(content=content, embeds=embeds)
