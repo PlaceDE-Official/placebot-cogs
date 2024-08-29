@@ -15,6 +15,8 @@ class VoiceChannelPermission(BasePermission):
     dyn_rename = auto()
     link_read = auto()
     link_write = auto()
+    log_read = auto()
+    log_set = auto()
     dyn_whitelist_write = auto()
     dyn_whitelist_read = auto()
     dyn_whitelist_check = auto()

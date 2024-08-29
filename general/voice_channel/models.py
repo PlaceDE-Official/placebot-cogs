@@ -5,10 +5,10 @@ from typing import Optional, Union
 from uuid import uuid4
 
 from discord.utils import utcnow
-from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, String
+from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, String, Integer
 from sqlalchemy.orm import relationship
 
-from PyDrocsid.database import Base, UTCDateTime, db
+from PyDrocsid.database import Base, UTCDateTime, db, filter_by
 
 
 class DynGroup(Base):
@@ -92,3 +92,23 @@ class AllowedChannelName(Base):
         name = AllowedChannelName(name=name)
         await db.add(name)
         return name
+
+
+class VoiceChannelLog(Base):
+    __tablename__ = "voice_channel_log"
+
+    channel_id: Union[Column, str] = Column(String(36), primary_key=True)
+    mode: Union[Column, int] = Column(Integer)
+
+    @staticmethod
+    async def create(channel_id: str, mode: int) -> VoiceChannelLog:
+        if channel := await VoiceChannelLog.get(channel_id):
+            channel.mode = mode
+        else:
+            channel = VoiceChannelLog(channel_id=channel_id, mode=mode)
+            await db.add(channel)
+        return channel
+
+    @staticmethod
+    async def get(channel_id: str) -> Optional[VoiceChannelLog]:
+        return await db.get(VoiceChannelLog, **{"channel_id": channel_id})

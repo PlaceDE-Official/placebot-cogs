@@ -5,6 +5,8 @@ permissions:
   dyn_rename: rename a dynamic voice channel
   link_read: read voice channel links
   link_write: write voice channel links
+  log_read: read voice channel log configuration
+  log_set: set voice channel log configuration
   dyn_whitelist_write: add or remove names from the custom whitelist for dynamic vcs
   dyn_whitelist_read: show the custom whitelist for dynamic vcs
   dyn_whitelist_check: check if a name is whitelisted for dynamic vcs
@@ -33,6 +35,9 @@ commands:
   voice_link: manage links between voice channels and roles
   voice_link_add: link a voice channel with a role
   voice_link_remove: delete the link between a voice channel and a role
+  voice_log: manage logged channels
+  voice_log_set: setup logging for a voice channel
+  voice_log_remove: disable logging for a voice channel
   help: show a list of voice channel commands
   disable_ping: disable join request pings for this channel
   enable_ping: enable join request pings for this channel
@@ -47,6 +52,34 @@ link_deleted: "Link has been deleted. :white_check_mark:"
 log_link_deleted: "**Link** has been **deleted** between voice channel `{}` and role `@{}`."
 could_not_remove_roles: Could not remove role {} from {}.
 could_not_add_roles: Could not add role {} to {}.
+
+no_logs_created: No logs have been created yet.
+log_mode_not_supported: The given mode is not supported. It has to be greater or equal to 0 and smaller than 16. See main command for an explanation.
+is_dynamic_voice: This voice channel is part of a dynamic voice channel group and can therefore not be a target for this command.
+voice_log_created_channel: "Logging mode for channel {} set to (`{}`). :white_check_mark:"
+voice_log_created_category: "Logging mode for all voice / stage channels in category `{}` set to (`{}`). :white_check_mark:"
+log_voice_log_created_channel: "**Voice Logging mode** for certain events has been **set** to (`{}`) for channel `{}`."
+log_voice_log_created_category: "**Voice Logging mode** for certain events has been **set** to (`{}`) for all voice / stage channels in category `{}`."
+log_not_found: The given channel / category does not have logging for voice channels enabled.
+voice_log_removed_channel: "Channel {} will no longer log certain events. :white_check_mark:"
+voice_log_removed_category: "All voice channels in category `{}` will no longer log certain events. :white_check_mark:"
+log_voice_log_removed_channel: "**Logging** for certain events has been **disabled** for channel `{}`."
+log_voice_log_removed_category: "**Logging** for certain events has been **disabled** for all voice channels in category `{}`."
+voice_log_mode_explanation: |
+  Logs specific events in voice channels into the channel.
+  
+  Any possible sum of the following numbers represents a valid mode.
+  Any number may only be used once in the sum.
+  
+  1: Log joins
+  2: Log leaves
+  4: Log switches between stage and audience
+  8: Log changes of the voice channel status
+  
+  Settings for a specific channel will always take precedence over category wide settings.
+  
+  If the mode is set to 0, all logging is disabled (this is the default for all non dynamic channels and categories).
+  This can be used to overwrite settings of categories for specific channels.
 
 dyn_group_already_exists: This channel is already part of an existing voice channel group.
 invalid_user_role: The role {} does not have `view_channel` and `connect` permissions in this voice channel. Please either grant this role the required permissions in this channel or specify a (different) role which should have access to this voice channel group.
@@ -67,6 +100,8 @@ log_dyn_group_removed: "A **dynamic voice channel group** has been **removed**."
 dyn_voice_created: ":sparkles: Channel has been created by {}."
 dyn_voice_joined: ":tada: {} joined this channel."
 dyn_voice_left: ":door: {} left this channel."
+dyn_voice_suppressed: ":mute: {} left the stage."
+dyn_voice_unsuppressed: ":loudspeaker: {} is now a speaker."
 dyn_voice_help_title: Voice Channel Commands
 dyn_voice_help_content: |
   :lock: `{prefix}vc lock` - lock this voice channel

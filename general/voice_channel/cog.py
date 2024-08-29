@@ -22,7 +22,9 @@ from discord import (
     TextChannel,
     VoiceChannel,
     VoiceState,
-    ui, RawAuditLogEntryEvent, AuditLogEntry, AuditLogAction,
+    ui,
+    RawAuditLogEntryEvent,
+    AuditLogAction, StageChannel,
 )
 from discord.abc import Messageable
 from discord.ext import commands, tasks
@@ -46,7 +48,7 @@ from PyDrocsid.types import GuildMessageable
 from PyDrocsid.util import DynamicVoiceConverter, check_role_assignable, escape_codeblock, send_editable_log
 
 from .colors import Colors
-from .models import AllowedChannelName, DynChannel, DynChannelMember, DynGroup, RoleVoiceLink
+from .models import AllowedChannelName, DynChannel, DynChannelMember, DynGroup, RoleVoiceLink, VoiceChannelLog
 from .permissions import VoiceChannelPermission
 from .settings import DynamicVoiceSettings, VoiceChannelSettings
 from ...contributor import Contributor
@@ -453,14 +455,18 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
         return new_owner
 
-    async def send_voice_msg(self, channel: DynChannel, title: str, msgs: list[str], force_new_embed: bool = False):
-        try:
-            voice_channel: VoiceChannel = self.get_voice_channel(channel)
-        except CommandError as e:
-            await send_alert(self.bot.guilds[0], *e.args)
-            return
+    async def send_voice_msg(self, channel: DynChannel | VoiceChannel | StageChannel, title: str, msgs: list[str], force_new_embed: bool = False, add_controls: bool = True):
+        if not isinstance(channel, VoiceChannel) and not isinstance(channel, StageChannel):
+            try:
+                voice_channel: VoiceChannel = self.get_voice_channel(channel)
+            except CommandError as e:
+                await send_alert(self.bot.guilds[0], *e.args)
+                return
+            color = int([Colors.unlocked, Colors.locked][channel.locked])
+        else:
+            voice_channel = channel
+            color = int(Colors.unlocked)
 
-        color = int([Colors.unlocked, Colors.locked][channel.locked])
         now = format_dt(now := utcnow(), style="D") + " " + format_dt(now, style="T")
         try:
             message: Message = await send_editable_log(
@@ -476,7 +482,8 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             await send_alert(voice_channel.guild, t.could_not_send_voice_msg(voice_channel.mention))
             return
 
-        await self.update_control_message(channel, message)
+        if add_controls and isinstance(channel, DynChannel):
+            await self.update_control_message(channel, message)
 
     async def update_control_message(self, channel: DynChannel, message: Message):
         async def clear_view(msg_id):
@@ -599,6 +606,11 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                     await self.send_voice_msg(
                         db_channel, t.voice_channel, [t.channel_status_deleted(f"<@{entry.user_id}>")]
                     )
+            else:
+                if channel := self.bot.get_channel(channel_id):
+                    if settings := (await VoiceChannelLog.get(channel_id=str(channel.id)) or await VoiceChannelLog.get(channel_id=str(channel.category.id))):
+                        if settings.mode & 8:
+                            await self.send_voice_msg(channel, t.voice_channel, [t.channel_status_deleted(f"<@{entry.user_id}>")], add_controls=False)
             if channel := await VoiceChannelSettings.vc_status_logchannel.get():
                 try:
                     await self.bot.get_channel(channel).send(
@@ -623,6 +635,21 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                             entry.extra["status"]
                         )]
                     )
+            else:
+                if channel := self.bot.get_channel(channel_id):
+                    if settings := (await VoiceChannelLog.get(channel_id=str(channel.id)) or await VoiceChannelLog.get(channel_id=str(channel.category.id))):
+                        if settings.mode & 8:
+                            await self.send_voice_msg(
+                                channel,
+                                t.voice_channel,
+                                [
+                                    t.channel_status_set(
+                                        f"<@{entry.user_id}>",
+                                        entry.extra["status"]
+                                    )
+                                ],
+                                add_controls=False
+                            )
             if channel := await VoiceChannelSettings.vc_status_logchannel.get():
                 try:
                     await self.bot.get_channel(channel).send(
@@ -848,7 +875,12 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         async with channel_locks[voice_channel.id]:
             dyn_channel: DynChannel | None = await DynChannel.get(channel_id=voice_channel.id)
             if not dyn_channel:
+                # check for extra logging when not dyn voice
+                if settings := (await VoiceChannelLog.get(channel_id=str(voice_channel.id)) or await VoiceChannelLog.get(channel_id=str(voice_channel.category.id))):
+                    if settings.mode & 1:
+                        await self.send_voice_msg(voice_channel, t.voice_channel, [t.dyn_voice_joined(member.mention)], add_controls=False)
                 return
+
 
             guild: Guild = voice_channel.guild
             category: CategoryChannel | Guild = voice_channel.category or guild
@@ -921,7 +953,11 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         async with channel_locks[voice_channel.id]:
             dyn_channel: DynChannel | None = await DynChannel.get(channel_id=voice_channel.id)
             if not dyn_channel:
-                return
+                # check for extra logging
+                if settings := (await VoiceChannelLog.get(channel_id=str(voice_channel.id)) or await VoiceChannelLog.get(channel_id=str(voice_channel.category.id))):
+                    if settings.mode & 2:
+                        await self.send_voice_msg(voice_channel, t.voice_channel, [t.dyn_voice_left(member.mention)], add_controls=False)
+                return 
 
             if not dyn_channel.locked:
                 text_channel: TextChannel | None = self.bot.get_channel(dyn_channel.text_id)
@@ -1012,6 +1048,14 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 await delete_voice()
 
     async def on_voice_state_update(self, member: Member, before: VoiceState, after: VoiceState):
+        if before.suppress != after.suppress and (voice_channel := self.bot.get_channel(after.channel.id)):
+            if settings := (await VoiceChannelLog.get(channel_id=str(voice_channel.id)) or await VoiceChannelLog.get(channel_id=str(voice_channel.category.id))):
+                if settings.mode & 4:
+                    if after.suppress:
+                        await self.send_voice_msg(voice_channel, t.voice_channel, [t.dyn_voice_suppressed(member.mention)], add_controls=False)
+                    else:
+                        await self.send_voice_msg(voice_channel, t.voice_channel, [t.dyn_voice_unsuppressed(member.mention)], add_controls=False)
+
         if before.channel == after.channel:
             return
 
@@ -1024,21 +1068,22 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
         async def create_task(delay, c, task_dict, cancel_dict, func):
             dyn_channel: DynChannel | None = await DynChannel.get(channel_id=channel.id)
-            if not dyn_channel:
-                return
-
-            await collect_links(member.guild, roles := set(), dyn_channel.group_id)
-            if func == self.member_leave:
-                await update_roles(member, remove=roles)
+            if dyn_channel:
+                new_key = dyn_channel.channel_id
+                await collect_links(member.guild, roles := set(), dyn_channel.group_id)
+                if func == self.member_leave:
+                    await update_roles(member, remove=roles)
+                else:
+                    await update_roles(member, add=roles)
             else:
-                await update_roles(member, add=roles)
+                new_key = channel.id
 
             key = member, c
             if task := cancel_dict.pop(key, None):
                 task.cancel()
             elif key not in task_dict:
                 task_dict[key] = asyncio.create_task(
-                    delayed(delay, dyn_channel.channel_id, func, lambda: task_dict.pop(key, None), *key)
+                    delayed(delay, new_key, func, lambda: task_dict.pop(key, None), *key)
                 )
 
         remove: set[Role] = set()
@@ -1677,6 +1722,84 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_link_deleted(voice_channel, role))
 
+    @voice.group(name="log", aliases=["vl"])
+    @VoiceChannelPermission.log_read.check
+    @docs(t.commands.voice_log)
+    async def voice_log(self, ctx: Context):
+        if ctx.subcommand_passed:
+            if ctx.invoked_subcommand is None:
+                raise UserInputError
+            return
+
+        guild: Guild = ctx.guild
+
+        out: list[tuple[VoiceChannel | CategoryChannel | StageChannel, int]] = []
+        db_channel: VoiceChannelLog
+        async for db_channel in await db.stream(select(VoiceChannelLog)):
+            channel: VoiceChannel | CategoryChannel | None = guild.get_channel(int(db_channel.channel_id))
+            if channel is None:
+                await db.delete(db_channel)
+                continue
+
+            out.append((channel, db_channel.mode))
+
+        embed = Embed(title=t.voice_channel, color=Colors.Voice)
+        embed.description = "\n".join(
+            f":small_orange_diamond: {channel.mention}: {mode}" if isinstance(channel, VoiceChannel) else f":file_folder: {channel.mention}: {mode}" for channel, mode in out
+        )
+
+        embed.description += "\n\n" + t.voice_log_mode_explanation
+
+        if not out:
+            embed.colour = Colors.error
+            embed.description = t.no_logs_created
+
+        await send_long_embed(ctx, embed)
+
+    @voice_log.command(name="set", aliases=["s", "a", "+"])
+    @VoiceChannelPermission.log_set.check
+    @docs(f"{t.commands.voice_log_set}\n\n{t.voice_log_mode_explanation}")
+    async def voice_log_set(self, ctx: Context, channel: VoiceChannel | CategoryChannel | StageChannel, mode: int):
+        if await DynChannel.get(channel_id=channel.id):
+            raise CommandError(t.is_dynamic_voice)
+
+        if not 0 <= mode <= 15:
+            raise CommandError(t.log_mode_not_supported)
+
+        await VoiceChannelLog.create(str(channel.id), mode)
+
+        if isinstance(channel, VoiceChannel) or isinstance(channel, StageChannel):
+            embed = Embed(title=t.voice_channel, colour=Colors.Voice, description=t.voice_log_created_channel(channel.mention, mode))
+            await reply(ctx, embed=embed)
+            await send_to_changelog(ctx.guild, t.log_voice_log_created_channel(channel.mention, mode))
+        else:
+            embed = Embed(title=t.voice_channel, colour=Colors.Voice, description=t.voice_log_created_category(channel.mention, mode))
+            await reply(ctx, embed=embed)
+            await send_to_changelog(ctx.guild, t.log_voice_log_created_category(channel.mention, mode))
+
+    @voice_log.command(name="remove", aliases=["del", "r", "d", "-"])
+    @VoiceChannelPermission.log_set.check
+    @docs(t.commands.voice_log_remove)
+    async def voice_log_remove(self, ctx: Context, channel: VoiceChannel | CategoryChannel | StageChannel):
+        if await DynChannel.get(channel_id=channel.id):
+            raise CommandError(t.is_dynamic_voice)
+
+        db_channel: VoiceChannelLog | None = await db.get(VoiceChannelLog, channel_id=channel.id)
+        if not db_channel:
+            raise CommandError(t.log_not_found)
+
+        await db.delete(db_channel)
+
+        if isinstance(channel, VoiceChannel) or isinstance(channel, StageChannel):
+            embed = Embed(title=t.voice_channel, colour=Colors.Voice, description=t.voice_log_removed_channel(channel.mention))
+            await reply(ctx, embed=embed)
+            await send_to_changelog(ctx.guild, t.log_voice_log_removed_channel(channel.mention))
+        else:
+            embed = Embed(title=t.voice_channel, colour=Colors.Voice, description=t.voice_log_removed_category(channel.mention))
+            await reply(ctx, embed=embed)
+            await send_to_changelog(ctx.guild, t.log_voice_log_removed_category(channel.mention))
+
+
     @voice.group(aliases=["wl"])
     @guild_only()
     @VoiceChannelPermission.dyn_whitelist_read.check
@@ -1730,7 +1853,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
     @whitelist.command(name="list", aliases=["l", "s"])
     @VoiceChannelPermission.dyn_whitelist_list.check
-    async def list(self, ctx: Context):
+    async def wl_list(self, ctx: Context):
         """
         List all allowed phrases for this server
 

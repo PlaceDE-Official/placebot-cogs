@@ -1,0 +1,76 @@
+Action
+Arcade & Rhythmus
+Egoshooter
+Hack and Slash
+Kampfspiel
+Kampfkunst
+Kampfspiele
+Plattformer
+Runner
+Shoot 'em up
+Third-Person-Shooter
+Abendteuer
+Abenteuer-Rollenspiel
+Abenteuer-Rollenspiele
+Gelegenheitsspiel
+Gelegenheitsspiele
+Komplexe Handlung
+Metroidvania
+Rätsel
+Visual Novel
+Visual Novels
+Wimmelbilder
+Rollenspiel
+Rollenspiele
+Action-Rollenspiel
+Action-Rollenspiele
+Gruppenbasiert
+JRPG
+JRPGs
+Roguelike
+Roguelikes
+Rundenbasiert
+Strategische Rollenspiel
+Strategische Rollenspiele
+Simulation
+Simulationen
+Bauen
+Automation
+Dating-Simulation
+Dating-Simulationen
+Hobby
+Hobbys
+Job
+Jobs
+Immersive
+Lebenssimulation
+Lebenssimulationen
+Landwirtschaft
+Herstellung
+Sandbox
+Physik
+Weltraum
+Flug
+Strategie
+Echtzeitstrategie
+GlobaleStrategie
+4X
+Karten-
+Brettspiel
+Brettspiele
+Militär
+Rundenbasierte Strategie
+Städte-
+Siedlungsbau
+Tower Defense
+Sportspiel
+Sportspiele
+Rennspiel
+Rennspiele
+Alle Sportarten
+Angeln
+Jagen
+Einzelsport
+Mannschaftssport
+Rennsportsimulation
+Sportsimulation
