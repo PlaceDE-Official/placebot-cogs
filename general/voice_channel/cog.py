@@ -1864,11 +1864,10 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         embed = Embed(
             title=t.voice_channel,
             colour=Colors.Voice,
-            description=t.phrases_list(", ".join(map(escape_codeblock, sorted(self.custom_names))))
+            description=t.phrases_list(", ".join(map(escape_codeblock, sorted(self.custom_names)))) + "\n\n" + t.phrases_list_link
             if self.custom_names
-            else t.no_phrases_allowed,
+            else t.no_phrases_allowed + "\n\n" + t.phrases_list_link,
         )
-        embed.set_footer(text=t.phrases_list_footer)
         await send_long_embed(ctx, embed=embed)
 
     @whitelist.command(name="add", aliases=["a", "+"])
@@ -1940,9 +1939,9 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             name = await get_name(member.voice.channel)
 
         embed = Embed()
-        if name and (data := names.get(name)):
+        if name and (data := names.get(name.lower())):
             embed.add_field(name="** **", value="** **", inline=False)
-            embed.add_field(name="Name:", value=name)
+            embed.add_field(name="Name:", value=data[1])
             embed.add_field(name="Date:", value=data[0])
             embed.image = data[2]
         embed.description = t.spewi_description

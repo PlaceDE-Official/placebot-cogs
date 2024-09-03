@@ -204,8 +204,8 @@ phrase_whitelist_removed: "{} was removed from the whitelisted names for dynamic
 log_phrase_whitelist_removed: "{} was **removed** from the **naming whitelist** for **dynamic voice channels**."
 phrase_too_long: A phrase can not be longer thant 25 characters.
 phrases_list: "Separately allowed phrases on this server:\n{}"
-phrases_list_footer: "Additional usable names can be found at: https://github.com/PlaceDE-Official/placebot-cogs/tree/develop/general/voice_channel/names."
-no_phrases_allowed: The are no phrases allowed separately for this server.
+phrases_list_link: "Additional whitelisted names can be found [>> here <<](https://github.com/PlaceDE-Official/placebot-cogs/tree/develop/general/voice_channel/names)"
+no_phrases_allowed: There are no phrases allowed separately for this server.
 whitespaces_now_required: "Whitespaces as separators are now required. :white_check_mark:"
 log_whitespaces_now_required: "Whitespaces as separators are from now on **required**."
 whitespaces_no_longer_required: "Whitespaces as separators are no longer required. :white_check_mark:"

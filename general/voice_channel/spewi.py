@@ -384,7 +384,7 @@ def transmute(data):
     return data[0].strip(), data[1].strip(), link
 
 names = {
-    x[1] : transmute(x)
+    x[1].lower() : transmute(x)
     for x in map(lambda x: x.split(","), names_string.splitlines())
 }
 
