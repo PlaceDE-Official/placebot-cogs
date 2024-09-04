@@ -13,7 +13,6 @@ tg = t.g
 t = t.remind_me
 
 EMOJIS = {
-    name_to_emoji["star"],
     name_to_emoji["mailbox"],
     name_to_emoji["e_mail"],
     name_to_emoji["envelope"],
