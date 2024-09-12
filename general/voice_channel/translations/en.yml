@@ -223,15 +223,6 @@ channel_readability_warning: |
   - This channel and the extra text channel are readable by the server team for moderation purposes. 
   - **Do not share private details in these channels as text or stream, if you do not want members of the server team to be able to see them.**
 
-not_dynamic_and_no_name: Must be in dynamic voice or explicit name must be given!
-spewi_description: |
-  <@786906973688823818> ist ein Mod.
-  FbN wusste damals nicht, wie sein Name ausgesprochen wird.
-  Deswegen hat er ihn immer Spewi oder Spui oder Ähnliches genannt.
-  Am 01.09.2023 meinte FbN, er nenne ihn einfach jeden Tag anders.
-  Seitdem wird Spewi jeden Tag um 22 Uhr in <#958373521313116180> umbenannt, mit neuem Profilbild, welches von den Usern erstellt wird.
-  Das hat FbN ein Jahr durchgezogen - also bis zum 01.09.2024.
-
 buttons:
   info: Info
   help: Help

@@ -51,7 +51,6 @@ from .colors import Colors
 from .models import AllowedChannelName, DynChannel, DynChannelMember, DynGroup, RoleVoiceLink, VoiceChannelLog
 from .permissions import VoiceChannelPermission
 from .settings import DynamicVoiceSettings, VoiceChannelSettings
-from .spewi import names
 from ...contributor import Contributor
 from ...pubsub import send_alert, send_to_changelog
 
@@ -1914,39 +1913,6 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         )
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_phrase_whitelist_removed(escape_codeblock(name)))
-
-    @commands.command()
-    async def spewi(self, ctx: Context, *, name: str | None = None):
-        async def get_name(channel):
-            if isinstance(channel, TextChannel):
-                db_channel: DynChannel | None = await db.get(
-                    DynChannel, [DynChannel.group, DynGroup.channels], DynChannel.members, text_id=channel.id
-                )
-            else:
-                db_channel: DynChannel | None = await db.get(
-                    DynChannel, [DynChannel.group, DynGroup.channels], DynChannel.members, channel_id=channel.id
-                )
-
-            if db_channel and (voice_channel := self.get_voice_channel(db_channel)):
-                return voice_channel.name
-
-        member = ctx.author
-        if (
-                not name and
-                not (name := await get_name(ctx.channel))
-                and isinstance(member, Member) and member.voice is not None and member.voice.channel is not None
-        ):
-            name = await get_name(member.voice.channel)
-
-        embed = Embed()
-        if name and (data := names.get(name.lower())):
-            embed.add_field(name="** **", value="** **", inline=False)
-            embed.add_field(name="Name:", value=data[1])
-            embed.add_field(name="Date:", value=data[0])
-            embed.image = data[2]
-        embed.description = t.spewi_description
-
-        await ctx.reply(embed=embed)
 
 
 """
