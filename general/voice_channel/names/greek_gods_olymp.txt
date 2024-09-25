@@ -12,6 +12,5 @@ Dionysos
 Hephaistos
 Ares
 Aphrodite
-Hebe
 Persephone
 Herakles
