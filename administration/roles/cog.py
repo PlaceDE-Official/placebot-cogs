@@ -1,14 +1,15 @@
 from typing import Dict, List, Optional, Union
 
-from discord import Embed, Forbidden, Guild, Member, NotFound, Permissions, Role, Status, User
+from discord import Embed, Forbidden, Guild, Member, NotFound, Permissions, Role, Status, User, Bot
 from discord.ext import commands
 from discord.ext.commands import CommandError, Context, Group, UserInputError, guild_only
 
+from PyDrocsid.async_thread import run_as_task
 from PyDrocsid.cog import Cog
 from PyDrocsid.command import docs, optional_permissions, reply
 from PyDrocsid.config import Config
 from PyDrocsid.converter import UserMemberConverter
-from PyDrocsid.database import db, filter_by, select
+from PyDrocsid.database import db, filter_by, select, db_wrapper
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.emojis import name_to_emoji
 from PyDrocsid.prefix import get_prefix
@@ -25,6 +26,57 @@ from ...pubsub import send_alert, send_to_changelog
 
 tg = t.g
 t = t.roles
+
+
+@run_as_task
+@db_wrapper
+async def calculate_role_list(ctx: Context, role: Role, bot: Bot):
+    await ctx.trigger_typing()
+    member_ids: set[int] = {member.id for member in role.members}
+    perma: dict[int, str] = {}
+
+    perma_role: PermaRole
+    async for perma_role in await db.stream(filter_by(PermaRole, role_id=role.id)):
+        try:
+            user = await bot.fetch_user(perma_role.member_id)
+        except NotFound:
+            continue
+
+        member_ids.add(user.id)
+        perma[user.id] = str(user)
+
+    members: list[Member] = []
+    for member_id in [*member_ids]:
+        if not (member := ctx.guild.get_member(member_id)):
+            continue
+
+        members.append(member)
+        member_ids.remove(member_id)
+
+    members.sort(
+        key=lambda m: ([Status.online, Status.idle, Status.dnd, Status.offline].index(m.status), str(m), m.id)
+    )
+
+    out = []
+    for member in members:
+        out.append(f"{status_icon(member.status)} {member.mention} (@{member})")
+        if member.id in perma:
+            out[-1] += " :shield:"
+            if role not in member.roles:
+                out[-1] += " :warning:"
+
+    for member_id, member_name in perma.items():
+        if member_id not in member_ids:
+            continue
+
+        out.append(f":grey_question: <@{member_id}> (@{member_name}) :shield:")
+
+    if out:
+        embed = Embed(title=t.member_list_cnt(role.name, cnt=len(out)), colour=0x256BE6, description="\n".join(out))
+    else:
+        embed = Embed(title=t.member_list, colour=0xCF0606, description=t.no_members)
+    await send_long_embed(ctx, embed, paginate=True)
+
 
 
 async def configure_role(ctx: Context, role_name: str, role: Role, check_assignable: bool = False):
@@ -350,51 +402,9 @@ class RolesCog(Cog, name="Roles"):
     @roles.command(name="list", aliases=["l", "?"])
     @RolesPermission.list_members.check
     @docs(t.commands.roles_list)
-    async def roles_list(self, ctx: Context, *, role: Role):
-        member_ids: set[int] = {member.id for member in role.members}
-        perma: dict[int, str] = {}
+    async def roles_list(self, ctx: Context, role: Role):
+        await calculate_role_list(ctx, role, self.bot)
 
-        perma_role: PermaRole
-        async for perma_role in await db.stream(filter_by(PermaRole, role_id=role.id)):
-            try:
-                user = await self.bot.fetch_user(perma_role.member_id)
-            except NotFound:
-                continue
-
-            member_ids.add(user.id)
-            perma[user.id] = str(user)
-
-        members: list[Member] = []
-        for member_id in [*member_ids]:
-            if not (member := ctx.guild.get_member(member_id)):
-                continue
-
-            members.append(member)
-            member_ids.remove(member_id)
-
-        members.sort(
-            key=lambda m: ([Status.online, Status.idle, Status.dnd, Status.offline].index(m.status), str(m), m.id)
-        )
-
-        out = []
-        for member in members:
-            out.append(f"{status_icon(member.status)} {member.mention} (@{member})")
-            if member.id in perma:
-                out[-1] += " :shield:"
-                if role not in member.roles:
-                    out[-1] += " :warning:"
-
-        for member_id, member_name in perma.items():
-            if member_id not in member_ids:
-                continue
-
-            out.append(f":grey_question: <@{member_id}> (@{member_name}) :shield:")
-
-        if out:
-            embed = Embed(title=t.member_list_cnt(role.name, cnt=len(out)), colour=0x256BE6, description="\n".join(out))
-        else:
-            embed = Embed(title=t.member_list, colour=0xCF0606, description=t.no_members)
-        await send_long_embed(ctx, embed, paginate=True)
 
     @roles.command(name="perma_list", aliases=["pl", "ll", "??"])
     @RolesPermission.list_members.check
