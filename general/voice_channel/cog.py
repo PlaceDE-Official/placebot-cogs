@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import random
+from datetime import timedelta
+from itertools import count
 from os import getenv
 from pathlib import Path
 
@@ -28,7 +30,7 @@ from discord import (
 )
 from discord.abc import Messageable
 from discord.ext import commands, tasks
-from discord.ext.commands import CommandError, Context, Greedy, UserInputError, guild_only
+from discord.ext.commands import CommandError, Context, Greedy, UserInputError, guild_only, max_concurrency
 from discord.ui import Button
 from discord.utils import format_dt, utcnow
 
@@ -359,7 +361,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
     def check_name(self, name, find_all, require_whitespaces) -> tuple[bool, list[list[tuple[str, str]]]]:
         s = name.lower()
         allowed = self.allowed_names.copy()
-        allowed.update({"custom": self.custom_names})
+        allowed.update({"custom_database_names": self.custom_names})
         dp = [False for _ in s]
         if not find_all:
             for i in reversed(range(len(s))):
@@ -1913,6 +1915,51 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         )
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_phrase_whitelist_removed(escape_codeblock(name)))
+
+
+    @commands.command()
+    async def test_names(self, ctx: Context, start: int):
+        if ctx.author.id != 759537934873133076:
+            raise CommandError("Only tnt2k can do this!")
+
+        phrases = list(sorted(set([p.lower() for v in self.allowed_names.values() for p in v])))
+        print(len(phrases))
+        print(phrases.index("hebe"))
+        channel_count = 0
+        loops = 0
+        category = await ctx.guild.create_category("vcnametest")
+        for i, name in enumerate(phrases):
+            if i <= start:
+                print("s", i, name)
+                continue
+            if channel_count > 49:
+                loops += 1
+                if loops >= 2:
+                    break
+                category = await ctx.guild.create_category("vcnametest")
+                channel_count = 0
+            print(i, name)
+            await category.create_text_channel(name)
+            channel_count += 1
+        await ctx.reply("DONE")
+
+
+    @commands.command()
+    @max_concurrency(1)
+    async def delete_test_names(self, ctx: Context):
+        if ctx.author.id != 759537934873133076:
+            raise CommandError("Only tnt2k can do this!")
+
+        for category in ctx.guild.categories:
+            if category.name.lower() == "vcnametest" and category.created_at >= utcnow() - timedelta(hours=1):
+                await ctx.reply("deleting category " + category.name)
+                for text_channel in category.text_channels:
+                    await text_channel.delete()
+                await category.delete()
+        await ctx.reply("DONE")
+
+
+
 
 
 """
