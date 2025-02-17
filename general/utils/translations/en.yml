@@ -1,11 +1,13 @@
 permissions:
   suggest_role_color: use the `suggest_role_color` command
+  set_voice_quality: Sets the voice channel bitrate
 
 commands:
   ping: Display bot latency
   snowflake: Display snowflake timestamp
   encode: Apply Python's `str.encode()` function to a user's name
   suggest_role_color: Suggest a new role color based on the colors of all existing roles
+  set_voice_quality: Sets the voice bitrate for all voice channels in this guild. Target bitrate must be in bit!
 
 pong: Pong!
 pong_latency: ":hourglass: {:.0f} ms"
@@ -18,3 +20,4 @@ uptime:
   started: "I was started at:"
   last_reload: "My last reload was at:"
   utc: All given times are in UTC time.
+no_permission: I do not have permission to update bitrate of {}!

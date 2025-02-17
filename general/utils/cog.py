@@ -2,14 +2,14 @@ import itertools
 import random
 from typing import Optional, Union
 
-from discord import Embed, Emoji, Member, User
+from discord import Embed, Emoji, Member, User, ChannelType
 from discord.ext import commands
 from discord.ext.commands import CommandError, Context, guild_only, max_concurrency
 from discord.utils import format_dt, snowflake_time
 
 from PyDrocsid.async_thread import run_in_thread
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import docs, reply
+from PyDrocsid.command import docs, reply, add_reactions
 from PyDrocsid.config import Config
 from PyDrocsid.converter import Color, EmojiConverter, UserMemberConverter
 from PyDrocsid.translations import t
@@ -117,6 +117,18 @@ class UtilsCog(Cog, name="Utils"):
         embed.add_field(name=t.uptime.last_reload, value=Config.LAST_RELOAD.strftime("%d.%m.%Y %H:%M:%S"), inline=False)
         embed.set_footer(text=t.uptime.utc)
         await reply(ctx, embed=embed)
+
+    @commands.command()
+    @UtilsPermission.set_voice_quality.check
+    @docs(t.commands.set_voice_quality)
+    async def set_voice_quality(self, ctx: Context, bitrate: int):
+        for channel in ctx.guild.channels:
+            if channel.type == ChannelType.voice and channel.bitrate != bitrate:
+                if not channel.permissions_for(ctx.me).manage_channels:
+                    raise CommandError(t.no_permission(channel.mention))
+                await channel.edit(bitrate=bitrate)
+        await add_reactions(ctx.message, "white_check_mark")
+
 
     """@commands.command(aliases=["kesk", "cookie"])
     async def keks(self, ctx: Context, *, args: str):

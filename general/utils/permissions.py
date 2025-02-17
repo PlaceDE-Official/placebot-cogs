@@ -10,3 +10,4 @@ class UtilsPermission(BasePermission):
         return t.utils.permissions[self.name]
 
     suggest_role_color = auto()
+    set_voice_quality = auto()
