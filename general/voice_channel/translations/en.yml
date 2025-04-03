@@ -32,6 +32,7 @@ commands:
   voice_unlock: unlock a dynamic voice channel
   voice_add: add a member to a dynamic voice channel
   voice_remove: kick and blacklist a member from a dynamic voice channel
+  voice_soundboard: manage permission to use the soundboard in a channel
   voice_link: manage links between voice channels and roles
   voice_link_add: link a voice channel with a role
   voice_link_remove: delete the link between a voice channel and a role
@@ -158,6 +159,10 @@ could_not_overwrite_permissions: Could not modify permission overwrites in {}.
 could_not_send_voice_msg: Could not send message to {}.
 could_not_kick: Could not kick {} out of {}.
 text_channel_for: Text Channel for {}
+soundboard_already_allowed: Soundboard is already allowed in this channel.
+soundboard_allowed: ":loud_sound: {} has allowed soundboard in this channel."
+soundboard_already_denied: Soundboard is already denied in this channel.
+soundboard_denied: ":mute: {} has denied soundboard in this channel."
 could_not_create_text_channel: Could not create text channel for {}.{}
 category_full: "\nThe category is full."
 could_not_create_voice_channel: Could not create new dynamic voice channel.{}

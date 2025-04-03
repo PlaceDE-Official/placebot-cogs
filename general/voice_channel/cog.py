@@ -1523,6 +1523,38 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             await self.change_channel_ping(ctx.author, channel, no_ping=False)
             await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
 
+    @voice.command(name="soundboard", aliases=["sb"])
+    @optional_permissions(VoiceChannelPermission.override_owner)
+    @docs(t.commands.voice_soundboard)
+    async def vc_soundboard(self, ctx: Context, allow: bool):
+        dc_channel: VoiceChannel = ctx.channel
+        channel, _, _ = await self.get_channel(ctx.author, check_owner=True)
+        async with channel_locks[channel.channel_id]:
+            sb_allowed = dc_channel.permissions_for(ctx.guild.default_role).value & 1 << 42
+            if allow and sb_allowed:
+                raise CommandError(t.soundboard_already_allowed)
+            if not allow and not sb_allowed:
+                raise CommandError(t.soundboard_already_denied)
+
+            if allow:
+                """
+
+                    ctx.guild.default_role: dc_channel.permissions_for(ctx.guild.default_role).value | 1 << 42,
+                    **ctx.channel.overwrites
+                """
+                await dc_channel.edit(overwrites={
+                    ctx.guild.default_role: PermissionOverwrite(dc_channel.permissions_for(ctx.guild.default_role).value | 1 << 42),
+                    **dc_channel.overwrites
+                })
+                await self.send_voice_msg(channel, t.voice_channel, [t.soundboard_allowed(ctx.author.mention)])
+            else:
+                await dc_channel.edit(overwrites={
+                    ctx.guild.default_role: PermissionOverwrite(dc_channel.permissions_for(ctx.guild.default_role).value & ~(1 << 42)),
+                    **ctx.channel.overwrites
+                })
+                await self.send_voice_msg(channel, t.voice_channel, [t.soundboard_denied(ctx.author.mention)])
+            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+
     @voice.command(name="join_request", aliases=["j", "jr"])
     async def join_request(self, ctx: Context, channel: DynamicVoiceConverter):
         """
