@@ -28,11 +28,12 @@ from discord import (
     RawAuditLogEntryEvent,
     AuditLogAction, StageChannel,
 )
-from discord.abc import Messageable
+from discord.abc import Messageable, _Overwrites
 from discord.ext import commands, tasks
 from discord.ext.commands import CommandError, Context, Greedy, UserInputError, guild_only, max_concurrency
 from discord.ui import Button
 from discord.utils import format_dt, utcnow
+from requests import options
 
 from PyDrocsid.async_thread import GatherAnyError, gather_any, run_as_task
 from PyDrocsid.cog import Cog
@@ -1527,6 +1528,30 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
     @optional_permissions(VoiceChannelPermission.override_owner)
     @docs(t.commands.voice_soundboard)
     async def vc_soundboard(self, ctx: Context, allow: bool):
+        def get_overwrites(overwrites, allow_soundboard: bool, default_role):
+            perms = []
+            if overwrites is not None:
+                for target, perm in overwrites.items():
+                    allow, deny = perm.pair()
+                    if target == default_role:
+                        if allow_soundboard:
+                            allow.value |= 1 << 42
+                        else:
+                            allow.value &= ~(1 << 42)
+                    payload = {
+                        "allow": allow.value,
+                        "deny": deny.value,
+                        "id": target.id,
+                        "type": (
+                            _Overwrites.ROLE
+                            if isinstance(target, Role)
+                            else _Overwrites.MEMBER
+                        ),
+                    }
+
+                    perms.append(payload)
+            return perms
+
         dc_channel: VoiceChannel = ctx.channel
         channel, _, _ = await self.get_channel(ctx.author, check_owner=True)
         async with channel_locks[channel.channel_id]:
@@ -1537,21 +1562,24 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 raise CommandError(t.soundboard_already_denied)
 
             if allow:
-                """
-
-                    ctx.guild.default_role: dc_channel.permissions_for(ctx.guild.default_role).value | 1 << 42,
-                    **ctx.channel.overwrites
-                """
-                await dc_channel.edit(overwrites={
-                    ctx.guild.default_role: PermissionOverwrite(dc_channel.permissions_for(ctx.guild.default_role).value | 1 << 42),
-                    **dc_channel.overwrites
-                })
+                options = {"permission_overwrites": get_overwrites(
+                    dc_channel.overwrites,
+                    True,
+                    ctx.guild.default_role
+                )}
+                await dc_channel._state.http.edit_channel(
+                    self.id, **options
+                )
                 await self.send_voice_msg(channel, t.voice_channel, [t.soundboard_allowed(ctx.author.mention)])
             else:
-                await dc_channel.edit(overwrites={
-                    ctx.guild.default_role: PermissionOverwrite(dc_channel.permissions_for(ctx.guild.default_role).value & ~(1 << 42)),
-                    **ctx.channel.overwrites
-                })
+                options = {"permission_overwrites": get_overwrites(
+                    dc_channel.overwrites,
+                    False,
+                    ctx.guild.default_role
+                )}
+                await dc_channel._state.http.edit_channel(
+                    self.id, **options
+                )
                 await self.send_voice_msg(channel, t.voice_channel, [t.soundboard_denied(ctx.author.mention)])
             await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
 
