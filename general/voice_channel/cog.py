@@ -1568,7 +1568,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                     ctx.guild.default_role
                 )}
                 await dc_channel._state.http.edit_channel(
-                    self.id, **options
+                    dc_channel.id, **options
                 )
                 await self.send_voice_msg(channel, t.voice_channel, [t.soundboard_allowed(ctx.author.mention)])
             else:
@@ -1578,7 +1578,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                     ctx.guild.default_role
                 )}
                 await dc_channel._state.http.edit_channel(
-                    self.id, **options
+                    dc_channel.id, **options
                 )
                 await self.send_voice_msg(channel, t.voice_channel, [t.soundboard_denied(ctx.author.mention)])
             await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
