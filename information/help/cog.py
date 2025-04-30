@@ -46,8 +46,8 @@ async def send_help(ctx: Context, command_name: Optional[Union[str, Command]]) -
         cog: Optional[Cog] = ctx.bot.get_cog(command_name)
         if cog is not None:
             await add_commands(cog.qualified_name, cog.get_commands())
-            if doc_url := get_documentation(cog):
-                embed.add_field(name=t.documentation, value=doc_url, inline=False)
+            #if doc_url := get_documentation(cog):
+            #    embed.add_field(name=t.documentation, value=doc_url, inline=False)
             return await send_long_embed(ctx, embed)
 
         command: Optional[Union[Command, Group]] = ctx.bot.get_command(command_name)
@@ -114,8 +114,8 @@ async def send_help(ctx: Context, command_name: Optional[Union[str, Command]]) -
             inline=False,
         )
 
-    if (doc_url := get_documentation(cmd.cog)) and not getattr(cmd.callback, "no_documentation", False):
-        embed.add_field(name=t.documentation, value=doc_url, inline=False)
+    #if (doc_url := get_documentation(cmd.cog)) and not getattr(cmd.callback, "no_documentation", False):
+    #    embed.add_field(name=t.documentation, value=doc_url, inline=False)
 
     return await send_long_embed(ctx, embed)
 

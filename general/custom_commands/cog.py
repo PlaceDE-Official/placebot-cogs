@@ -7,6 +7,7 @@ from typing import Optional
 
 import requests
 from aiohttp import ClientSession
+from attr import dataclass
 from discord import AllowedMentions, Embed, Forbidden, HTTPException, NotFound, User
 from discord.ext import commands
 from discord.ext.commands import Command, CommandError, Context, Converter, UserInputError, guild_only
@@ -18,6 +19,7 @@ from PyDrocsid.command import Confirmation, add_reactions, docs, no_documentatio
 from PyDrocsid.command_edit import link_response
 from PyDrocsid.config import Config, Contributor
 from PyDrocsid.database import db, filter_by, select
+from PyDrocsid.discohook import DISCOHOOK_EMPTY_MESSAGE, load_discohook_link, DiscoHookError
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.logger import get_logger
 from PyDrocsid.permission import BasePermissionLevel
@@ -37,11 +39,6 @@ logger = get_logger(__name__)
 
 tg = t.g
 t = t.custom_commands
-
-DISCOHOOK_EMPTY_MESSAGE = (
-    "[https://discohook.org/]"
-    "(https://discohook.org/?data=eyJtZXNzYWdlcyI6W3siZGF0YSI6eyJjb250ZW50IjpudWxsLCJlbWJlZHMiOm51bGx9fV19)"
-)
 
 
 def warning(text: str) -> Embed:
@@ -66,11 +63,11 @@ class CustomCommandConverter(Converter):
 
 
 async def send_custom_command_message(
-    ctx: Context,
-    custom_command: CustomCommand,
-    channel: GuildMessageable,
-    test: bool = False,
-    mention_user: Optional[User] = None,
+        ctx: Context,
+        custom_command: CustomCommand,
+        channel: GuildMessageable,
+        test: bool = False,
+        mention_user: Optional[User] = None,
 ):
     if test and channel != ctx.channel:
         raise ValueError
@@ -184,45 +181,14 @@ def create_custom_command(custom_command: CustomCommand):
     return command
 
 
-async def load_discohook(url: str) -> str:
-    if not re.match(r"^https://share.discohook.app/go/[a-zA-Z\d]+$", url):
-        raise CommandError(t.invalid_url_instructions(DISCOHOOK_EMPTY_MESSAGE))
-
-    try:
-        url = (await run_in_thread(requests.head)(url, allow_redirects=True)).url
-    except (KeyError, AttributeError, requests.RequestException, UnicodeError, ConnectionError, LocationParseError):
-        raise CommandError(t.invalid_url)
-
-    if not (match := re.match(r"^https://discohook.org/\?data=([a-zA-Z\d\-_]+)$", url)):
-        raise CommandError(t.invalid_url)
-
-    try:
-        messages = [msg["data"] for msg in json.loads(base64.urlsafe_b64decode(match.group(1) + "=="))["messages"]]
-    except (binascii.Error, json.JSONDecodeError, KeyError):
-        raise CommandError(t.invalid_url)
-
-    if not isinstance(messages, list):
-        raise CommandError(t.invalid_url)
-
-    for msg in messages:
-        if not isinstance(msg.get("content") or "", str):
-            raise CommandError(t.invalid_url)
-
-        for embed in msg.get("embeds") or []:
-            if not isinstance(embed, dict):
-                raise CommandError(t.invalid_url)
-
-    return json.dumps(messages)
-
-
 async def create_discohook_url(command: CustomCommand) -> Optional[str]:
     if url := await redis.get(key := f"custom_command_discohook_url:{command.id}"):
         return url
 
     data = json.dumps({"messages": [{"data": msg} for msg in json.loads(command.data)]})
-    url = "https://discohook.org/?data=" + base64.urlsafe_b64encode(data.encode()).decode().rstrip("=")
+    url = "https://discohook.app/?data=" + base64.urlsafe_b64encode(data.encode()).decode().rstrip("=")
     async with ClientSession() as session, session.post(
-        "https://share.discohook.app/create", json={"url": url}
+            "https://share.discohook.app/create", json={"url": url}
     ) as response:
         url: Optional[str] = (await response.json()).get("url")
         if not response.ok or not url:
@@ -335,7 +301,12 @@ class CustomCommandsCog(Cog, name="Custom Commands"):
         else:
             permission_level = await Config.PERMISSION_LEVELS.get_permission_level(ctx.author)
 
-        command = await CustomCommand.create(name, await load_discohook(discohook_url), False, permission_level)
+        try:
+            data = await load_discohook_link(discohook_url)
+        except DiscoHookError:
+            raise CommandError(t.invalid_url_instructions(DISCOHOOK_EMPTY_MESSAGE))
+
+        command = await CustomCommand.create(name, json.dumps([msg.to_dict()["data"] for msg in data]), False, permission_level)
         self.load_command(command)
 
         await send_to_changelog(ctx.guild, t.log.created(name))
@@ -434,7 +405,7 @@ class CustomCommandsCog(Cog, name="Custom Commands"):
     @custom_commands_edit.command(name="description", aliases=["desc", "d"])
     @docs(t.commands.edit.description)
     async def custom_commands_edit_description(
-        self, ctx: Context, command: CustomCommandConverter, *, description: str = None
+            self, ctx: Context, command: CustomCommandConverter, *, description: str = None
     ):
         command: CustomCommand
 
@@ -452,7 +423,7 @@ class CustomCommandsCog(Cog, name="Custom Commands"):
     @custom_commands_edit.command(name="channel_parameter", aliases=["cp"])
     @docs(t.commands.edit.channel_parameter_enabled)
     async def custom_commands_edit_channel_parameter(
-        self, ctx: Context, command: CustomCommandConverter, enabled: bool
+            self, ctx: Context, command: CustomCommandConverter, enabled: bool
     ):
         command: CustomCommand
 
@@ -472,7 +443,7 @@ class CustomCommandsCog(Cog, name="Custom Commands"):
     @custom_commands_edit.command(name="channel", aliases=["c"])
     @docs(t.commands.edit.channel)
     async def custom_commands_edit_channel(
-        self, ctx: Context, command: CustomCommandConverter, *, channel: GuildMessageable = None
+            self, ctx: Context, command: CustomCommandConverter, *, channel: GuildMessageable = None
     ):
         command: CustomCommand
 
@@ -511,7 +482,7 @@ class CustomCommandsCog(Cog, name="Custom Commands"):
     @custom_commands_edit.command(name="permission_level", aliases=["pl"])
     @docs(t.commands.edit.permission_level)
     async def custom_commands_edit_permission_level(
-        self, ctx: Context, command: CustomCommandConverter, level: PermissionLevelConverter
+            self, ctx: Context, command: CustomCommandConverter, level: PermissionLevelConverter
     ):
         command: CustomCommand
         level: BasePermissionLevel
@@ -527,7 +498,7 @@ class CustomCommandsCog(Cog, name="Custom Commands"):
     @custom_commands_edit.command(name="requires_confirmation", aliases=["rc"])
     @docs(t.commands.edit.requires_confirmation)
     async def custom_commands_edit_requires_confirmation(
-        self, ctx: Context, command: CustomCommandConverter, enabled: bool
+            self, ctx: Context, command: CustomCommandConverter, enabled: bool
     ):
         command: CustomCommand
 
@@ -567,7 +538,11 @@ class CustomCommandsCog(Cog, name="Custom Commands"):
     async def custom_commands_edit_data(self, ctx: Context, command: CustomCommandConverter, discohook_url: str):
         command: CustomCommand
 
-        command.data = await load_discohook(discohook_url)
+        try:
+            command.data = json.dumps([msg.to_dict()["data"] for msg in await load_discohook_link(discohook_url)])
+        except DiscoHookError:
+            raise CommandError(t.invalid_url_instructions(DISCOHOOK_EMPTY_MESSAGE))
+
         self.reload_command(command)
         await redis.delete(f"custom_command_discohook_url:{command.id}")
         await send_to_changelog(ctx.guild, t.log.data(command.name))

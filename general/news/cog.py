@@ -242,7 +242,7 @@ class NewsCog(Cog, name="News"):
     async def news_send(self, ctx: Context, channel: GuildMessageable, *, discohook_url: str):
         """
         send a news message
-        - generate the discohook link using https://discohook.org (use "Share Message" at the top of the page to get short link)
+        - generate the discohook link using https://discohook.app (use "Share Message" at the top of the page to get short link)
         - add attachments to this command (not the message on discohook) to attach them to the sent message
 
         the `<>` below are part of the pings, do not remove them!
@@ -319,7 +319,7 @@ class NewsCog(Cog, name="News"):
     async def news_test(self, ctx: Context, *, discohook_url: str):
         """
         tests a news message (sends you everything per dm, instead of into a channel)
-        - generate the discohook link using https://discohook.org (use "Share Message" at the top of the page to get short link)
+        - generate the discohook link using https://discohook.app (use "Share Message" at the top of the page to get short link)
         - add attachments to this command (not the message on discohook) to attach them to the sent message
 
         the `<>` below are part of the pings, do not remove them!

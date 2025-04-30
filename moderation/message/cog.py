@@ -125,7 +125,7 @@ class MessageCog(Cog, name="Message Commands"):
                 msg for msg in await load_discohook_link(discohook_url) if not msg.is_empty
             ]
         except DiscoHookError:
-            raise CommandError(t.discohook_invalid)
+            raise CommandError(t.invalid_url_instructions(DISCOHOOK_EMPTY_MESSAGE))
 
         if not messages:
             raise CommandError(t.discohook_empty)
@@ -228,7 +228,7 @@ class MessageCog(Cog, name="Message Commands"):
                 msg for msg in await load_discohook_link(discohook_url) if not msg.is_empty
             ]
         except DiscoHookError:
-            raise CommandError(t.discohook_invalid)
+            raise CommandError(t.invalid_url_instructions(DISCOHOOK_EMPTY_MESSAGE))
 
         if not messages:
             raise CommandError(t.discohook_empty)
@@ -238,7 +238,7 @@ class MessageCog(Cog, name="Message Commands"):
         content, embeds = messages[0]
         # why did this exist?
         #if len(embeds) > 1:
-         #   raise CommandError(t.discohook_multiple_embeds)
+        #   raise CommandError(t.discohook_multiple_embeds)
 
         try:
             await message.edit(content=content, embeds=embeds)

@@ -6,7 +6,10 @@ commands:
   custom_commands: Manage custom commands
   add: |
     Create a new custom command
-    Go to {}, compose your message, click on `Share Message` and copy the link.
+    
+    1. Go to [discohook.app]({})
+    2. compose your message
+    3. click on `Share Message` and copy the link.
   show: Show details about a given custom command
   test: Send the message of a given custom command into the current channel without mentioning any user or role
   edit_: Edit a given custom command
@@ -25,7 +28,11 @@ commands:
     user_parameter: Enable/disable the `user` parameter of a custom command
     data: |
       Change the message content of this custom command
-      Go to {}, compose your message, click on `Share Message` and copy the link.
+      
+      1. Go to [discohook.app]({})
+      2. compose your message
+      3. click on `Share Message` and copy the link.
+      
       To load the current message content, use the `cc show` command.
   alias: Create an alias for a given custom command
   unalias: Delete a given custom command alias
@@ -53,10 +60,13 @@ invalid_length_description: Command descriptions cannot contain more than 256 ch
 
 alias_not_found: Alias does not exist!
 already_exists: Command already exists!
-invalid_url: Invalid Discohook URL!
 invalid_url_instructions: |
   Invalid Discohook URL!
-  Please go to {}, compose your message, click on `Share Message` and copy the link.
+  
+  Please
+  1. go to [discohook.app]({})
+  2. compose your message
+  3. click on `Share Message` and copy the link.
 could_not_send_message: One or more messages could not be sent!
 cc_already_disabled: Custom command has already been disabled!
 not_disabled: Custom command is not disabled!

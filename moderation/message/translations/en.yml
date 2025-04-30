@@ -11,14 +11,20 @@ commands:
   send_copy: copy a message (specify message link)
   send_discohook: |
     send a discohook message
-    Go to {}, compose your message, click on `Share Message` and copy the link.
+    
+    1. Go to [discohook.app]({})
+    2. compose your message
+    3. click on `Share Message` and copy the link.
   edit: edit messages sent by the bot
   edit_text: edit a normal message (specify message link)
   edit_embed: edit an embed (specify message link)
   edit_copy: copy a message into another message (specify message links)
   edit_discohook: |
     edit a discohook message
-    Go to {}, compose your message, click on `Share Message` and copy the link.
+    
+    1. Go to [discohook.app]({})
+    2. compose your message
+    3. click on `Share Message` and copy the link.
   delete: delete a message (specify message link)
   clear: "delete the last <count> messages in this channel"
   discohook: create a discohook link for an existing message
@@ -64,4 +70,10 @@ discohook_empty: This discohook link does not contain any messages.
 discohook_multiple_messages: This discohook link contains more than one message.
 discohook_multiple_embeds: This discohook link contains more than one embed.
 discohook_create_failed: Discohook link could not be created.
-discohook_invalid: Invalid discohook link
+invalid_url_instructions: |
+  Invalid Discohook URL!
+  
+  Please
+  1. go to [discohook.app]({})
+  2. compose your message
+  3. click on `Share Message` and copy the link.
