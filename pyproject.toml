@@ -9,7 +9,7 @@ homepage = "https://github.com/PyDrocsid/cogs"
 repository = "https://github.com/PyDrocsid/cogs"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.11 <3.12"
 PyDrocsid = "^2.3.4"
 SQLAlchemy = "^1.4.32"
 aiohttp = "^3.8.1"
@@ -46,8 +46,8 @@ pre-commit = ["lint"]
 [tool.poe.tasks.setup]
 shell = """
 set -ex
-poetry install --no-root
-./pre-commit.sh install
+python -m poetry install --no-root
+#./pre-commit.sh install
 """
 interpreter = "bash"
 
