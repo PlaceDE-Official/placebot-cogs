@@ -8,7 +8,10 @@ commands:
   send: send messages as the bot
   send_text: send a normal message
   send_embed: send an embed
-  send_copy: copy a message (specify message link)
+  send_copy: |
+    copy a message (specify message link)
+    
+    **Warning: This will NOT suppress mentions!**
   send_discohook: |
     send a discohook message
     
@@ -18,7 +21,10 @@ commands:
   edit: edit messages sent by the bot
   edit_text: edit a normal message (specify message link)
   edit_embed: edit an embed (specify message link)
-  edit_copy: copy a message into another message (specify message links)
+  edit_copy: |
+    copy a message into another message (specify message links)
+    
+    **Warning: This will NOT suppress mentions!**
   edit_discohook: |
     edit a discohook message
     
@@ -77,3 +83,12 @@ invalid_url_instructions: |
   1. go to [discohook.app]({})
   2. compose your message
   3. click on `Share Message` and copy the link.
+mention_explanation: |
+  The bot can suppress pings in messages.
+  
+  The following mentions can be suppressed:
+  **Modes:**
+  - `1`: Do not ping users.
+  - `2`: Do not ping roles.
+  - `4`: Do not ping everyone and here.  
+  This modes can be mixed (sum the numbers), to suppress multiple things together, e.g. mode `3` suppresses user and role pings, but not everyone or here.

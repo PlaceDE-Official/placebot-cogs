@@ -1833,11 +1833,11 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         if isinstance(channel, VoiceChannel) or isinstance(channel, StageChannel):
             embed = Embed(title=t.voice_channel, colour=Colors.Voice, description=t.voice_log_created_channel(channel.mention, mode))
             await reply(ctx, embed=embed)
-            await send_to_changelog(ctx.guild, t.log_voice_log_created_channel(channel.mention, mode))
+            await send_to_changelog(ctx.guild, t.log_voice_log_created_channel(mode, channel.mention))
         else:
             embed = Embed(title=t.voice_channel, colour=Colors.Voice, description=t.voice_log_created_category(channel.mention, mode))
             await reply(ctx, embed=embed)
-            await send_to_changelog(ctx.guild, t.log_voice_log_created_category(channel.mention, mode))
+            await send_to_changelog(ctx.guild, t.log_voice_log_created_category(mode, channel.mention))
 
     @voice_log.command(name="remove", aliases=["del", "r", "d", "-"])
     @VoiceChannelPermission.log_set.check

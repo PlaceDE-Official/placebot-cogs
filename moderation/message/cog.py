@@ -1,6 +1,6 @@
 from typing import Optional
 
-from discord import Embed, File, Forbidden, HTTPException, Member, Message, NotFound, Permissions
+from discord import Embed, File, Forbidden, HTTPException, Member, Message, NotFound, Permissions, AllowedMentions
 from discord.ext import commands
 from discord.ext.commands import CommandError, Context, UserInputError, guild_only
 
@@ -118,8 +118,8 @@ class MessageCog(Cog, name="Message Commands"):
             await reply(ctx, embed=embed)
 
     @send.command(name="discohook", aliases=["dh"])
-    @docs(t.commands.send_discohook(DISCOHOOK_EMPTY_MESSAGE))
-    async def send_discohook(self, ctx: Context, channel: GuildMessageable, *, discohook_url: str):
+    @docs(t.commands.send_discohook(DISCOHOOK_EMPTY_MESSAGE) + "\n" + t.mention_explanation)
+    async def send_discohook(self, ctx: Context, channel: GuildMessageable, discohook_url: str, suppressed_mentions: int = 0):
         try:
             messages: list[MessageContent] = [
                 msg for msg in await load_discohook_link(discohook_url) if not msg.is_empty
@@ -132,14 +132,21 @@ class MessageCog(Cog, name="Message Commands"):
 
         check_message_send_permissions(channel, check_embed=any(m.embeds for m in messages))
 
+        allowed_mentions = AllowedMentions(
+            everyone=not bool(suppressed_mentions & 4),
+            roles=not bool(suppressed_mentions & 2),
+            users=not bool(suppressed_mentions & 1),
+        )
+
         try:
             for message in messages:
                 for msg in split_message(message.embeds, message.content):
-                    await channel.send(content=msg[0], embeds=msg[1])
+                    await channel.send(content=msg[0], embeds=msg[1], allowed_mentions=allowed_mentions)
         except (HTTPException, Forbidden):
             raise CommandError(t.msg_could_not_be_sent)
 
         await add_reactions(ctx.message, "white_check_mark")
+
 
     @commands.group()
     @MessagePermission.edit.check
@@ -218,8 +225,8 @@ class MessageCog(Cog, name="Message Commands"):
         await reply(ctx, embed=embed)
 
     @edit.command(name="discohook", aliases=["dh"])
-    @docs(t.commands.edit_discohook(DISCOHOOK_EMPTY_MESSAGE))
-    async def edit_discohook(self, ctx: Context, message: Message, discohook_url: str):
+    @docs(t.commands.edit_discohook(DISCOHOOK_EMPTY_MESSAGE) + "\n" + t.mention_explanation)
+    async def edit_discohook(self, ctx: Context, message: Message, discohook_url: str, suppressed_mentions: int = 0):
         if message.author != self.bot.user:
             raise CommandError(t.could_not_edit)
 
@@ -229,6 +236,12 @@ class MessageCog(Cog, name="Message Commands"):
             ]
         except DiscoHookError:
             raise CommandError(t.invalid_url_instructions(DISCOHOOK_EMPTY_MESSAGE))
+
+        allowed_mentions = AllowedMentions(
+            everyone=not bool(suppressed_mentions & 4),
+            roles=not bool(suppressed_mentions & 2),
+            users=not bool(suppressed_mentions & 1),
+        )
 
         if not messages:
             raise CommandError(t.discohook_empty)
@@ -241,7 +254,7 @@ class MessageCog(Cog, name="Message Commands"):
         #   raise CommandError(t.discohook_multiple_embeds)
 
         try:
-            await message.edit(content=content, embeds=embeds)
+            await message.edit(content=content, embeds=embeds, allowed_mentions=allowed_mentions)
         except (HTTPException, Forbidden):
             raise CommandError(t.msg_could_not_be_sent)
 
