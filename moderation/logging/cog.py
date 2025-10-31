@@ -13,8 +13,9 @@ from discord import (
     Message,
     RawMessageDeleteEvent,
     TextChannel,
-    User,
+    User, Thread,
 )
+from discord.abc import GuildChannel
 from discord.ext import commands, tasks
 from discord.ext.commands import Command, CommandError, Context, Group, UserInputError, guild_only
 from discord.utils import format_dt, snowflake_time, utcnow
@@ -200,6 +201,8 @@ class LoggingCog(Cog, name="Logging"):
             return
         if await LogExclude.exists(after.channel.id):
             return
+        if isinstance(after.channel, Thread) and await LogExclude.exists(after.channel.parent_id):
+            return
         if await LogExclude.exists(after.channel.category_id):
             return
 
@@ -234,6 +237,8 @@ class LoggingCog(Cog, name="Logging"):
             return
         if await LogExclude.exists(message.channel.id):
             return
+        if isinstance(message.channel, Thread) and await LogExclude.exists(message.channel.parent_id):
+            return
         if await LogExclude.exists(message.channel.category_id):
             return
 
@@ -266,6 +271,8 @@ class LoggingCog(Cog, name="Logging"):
         if await is_logging_channel(message.channel):
             return
         if await LogExclude.exists(message.channel.id):
+            return
+        if isinstance(message.channel, Thread) and await LogExclude.exists(message.channel.parent_id):
             return
         if await LogExclude.exists(message.channel.category_id):
             return
@@ -304,10 +311,18 @@ class LoggingCog(Cog, name="Logging"):
         if (delete_channel := await self.get_logging_channel(LoggingSettings.delete_channel)) is None:
             return
         await redis.delete(f"little_diff_message_edit:{event.message_id}")
+
+        # channel itself
         if await LogExclude.exists(event.channel_id):
             return
-        category = self.bot.guilds[0].get_channel(event.channel_id)
-        if category and await LogExclude.exists(category.category_id):
+
+        # get Thread or channel
+        target = self.bot.guilds[0].get_channel(event.channel_id) or self.bot.guilds[0].get_thread(event.channel_id)
+        # check thread
+        if isinstance(target, Thread) and await LogExclude.exists(target.parent_id):
+            return
+        # get channel
+        if isinstance(target, GuildChannel) and await LogExclude.exists(target.category_id):
             return
 
         embed = Embed(title=t.message_deleted, color=Colors.delete)
