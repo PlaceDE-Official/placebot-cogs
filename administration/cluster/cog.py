@@ -12,9 +12,9 @@ from PyDrocsid.config import Config
 from PyDrocsid.database import db, select
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.emojis import name_to_emoji
-from PyDrocsid.environment import CLUSTER_NODE
+from PyDrocsid.environment import CLUSTER_NODE, CLUSTER_HEARTBEAT_TIMEOUT
 from PyDrocsid.translations import t
-from cluster import sort_nodes, HEARTBEAT_TIMEOUT
+from cluster import sort_nodes
 from .colors import Colors
 from .permissions import ClusterPermission
 from ...contributor import Contributor
@@ -47,7 +47,7 @@ class ClusterCog(Cog, name="Cluster"):
             "healthy": [":x:", ":white_check_mark:"]
         }
         for node in await sort_nodes(await db.all(select(ClusterNode))):
-            healthy = node.timestamp + timedelta(seconds=HEARTBEAT_TIMEOUT) >= utcnow()
+            healthy = node.timestamp + timedelta(seconds=CLUSTER_HEARTBEAT_TIMEOUT) >= utcnow()
             value = [
                 # first line
                 t.info_embed.bot + ": " +
