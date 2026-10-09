@@ -3,12 +3,13 @@ from __future__ import annotations
 import asyncio
 import random
 from datetime import timedelta
-from itertools import count
 from os import getenv
 from pathlib import Path
 
 from discord import (
+    AuditLogAction,
     CategoryChannel,
+    ChannelType,
     Embed,
     Forbidden,
     Guild,
@@ -18,26 +19,28 @@ from discord import (
     Member,
     Message,
     NotFound,
+    Option,
     PermissionOverwrite,
     Permissions,
+    RawAuditLogEntryEvent,
     Role,
+    SlashCommandGroup,
+    StageChannel,
     TextChannel,
     VoiceChannel,
     VoiceState,
     ui,
-    RawAuditLogEntryEvent,
-    AuditLogAction, StageChannel,
 )
 from discord.abc import Messageable, _Overwrites
+from discord.commands import ApplicationContext
 from discord.ext import commands, tasks
-from discord.ext.commands import CommandError, Context, Greedy, UserInputError, guild_only, max_concurrency
+from discord.ext.commands import CommandError, Context, max_concurrency
 from discord.ui import Button
 from discord.utils import format_dt, utcnow
-from requests import options
 
 from PyDrocsid.async_thread import GatherAnyError, gather_any, run_as_task
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import Confirmation, MaintenanceAwareView, docs, optional_permissions, reply
+from PyDrocsid.command import Confirmation, MaintenanceAwareView, optional_permissions, reply
 from PyDrocsid.database import db, db_context, db_wrapper, delete, filter_by, select
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.emojis import name_to_emoji
@@ -47,8 +50,7 @@ from PyDrocsid.prefix import get_prefix
 from PyDrocsid.redis_client import redis
 from PyDrocsid.settings import RoleSettings
 from PyDrocsid.translations import t
-from PyDrocsid.types import GuildMessageable
-from PyDrocsid.util import DynamicVoiceConverter, check_role_assignable, escape_codeblock, send_editable_log
+from PyDrocsid.util import check_role_assignable, escape_codeblock, send_editable_log
 
 from .colors import Colors
 from .models import AllowedChannelName, DynChannel, DynChannelMember, DynGroup, RoleVoiceLink, VoiceChannelLog
@@ -829,7 +831,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             await self.fix_owner(channel)
 
     async def create_text_channel(
-        self, dyn_channel: DynChannel, voice_channel: VoiceChannel, ctx: Context = None
+        self, dyn_channel: DynChannel, voice_channel: VoiceChannel, ctx: Context | ApplicationContext | None = None
     ) -> TextChannel | None:
         text_channel: TextChannel
         guild: Guild = voice_channel.guild
@@ -844,7 +846,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                     colour=Colors.error,
                     description=t.could_not_create_text_channel(voice_channel.mention, t.category_full),
                 )
-                await ctx.reply(embed=embed)
+                await reply(ctx, embed=embed)
             else:
                 await send_alert(
                     voice_channel.guild, t.could_not_create_text_channel(voice_channel.mention, t.category_full)
@@ -868,7 +870,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 embed = Embed(
                     colour=Colors.error, description=t.could_not_create_text_channel(voice_channel.mention, "")
                 )
-                await ctx.reply(embed=embed)
+                await reply(ctx, embed=embed)
             else:
                 await send_alert(voice_channel.guild, t.could_not_create_text_channel(voice_channel.mention, ""))
             return
@@ -1106,20 +1108,42 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
         await update_roles(member, add=add, remove=remove)
 
-    @commands.group(aliases=["vc"])
-    @guild_only()
-    @docs(t.commands.voice)
-    async def voice(self, ctx: Context):
-        if ctx.invoked_subcommand is None:
-            raise UserInputError
+    voice = SlashCommandGroup(
+        name="voice",
+        description="Voice-Channel steuern und verwalten",
+        guild_only=True,
+    )
 
-    @voice.command()
+    dynamic = voice.create_subgroup(
+        name="dynamic",
+        description="Dynamische Sprachkanal-Gruppen verwalten",
+    )
+
+    role_links = voice.create_subgroup(
+        name="role_links",
+        description="Rollen-Verknüpfungen für Sprachkanäle verwalten",
+    )
+
+    log = voice.create_subgroup(
+        name="log",
+        description="Voice-Logging konfigurieren",
+    )
+
+    whitelist = voice.create_subgroup(
+        name="whitelist",
+        description="Erlaubte Kanalnamen verwalten",
+    )
+
+    @voice.command(name="status_logchannel", description="Textkanal für Voice-Status-Updates konfigurieren")
     @VoiceChannelPermission.vcstatus_logchannel.check
-    async def vcstatus_logchannel(self, ctx: Context, disable: bool = False, channel: GuildMessageable | None = None):
-        """
-        Set the TextChannel, where status updates for voice channels are logged.
-        """
-
+    async def vcstatus_logchannel(
+        self,
+        ctx: ApplicationContext,
+        channel: TextChannel | None = Option(
+            TextChannel, description="Textkanal (leer lassen für aktuellen Status)", required=False, default=None
+        ),
+        disable: bool = Option(bool, description="Logging deaktivieren", required=False, default=False),
+    ):
         embed = Embed(title=t.voice_channel, colour=Colors.Voice)
         if disable:
             await VoiceChannelSettings.vc_status_logchannel.set(0)
@@ -1137,15 +1161,9 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                     embed.description = t.status_log_channel_disabled
         await reply(ctx, embed=embed)
 
-    @voice.group(name="dynamic", aliases=["dyn", "d"])
+    @dynamic.command(name="list", description="Dynamische Sprachkanal-Gruppen auflisten")
     @VoiceChannelPermission.dyn_read.check
-    @docs(t.commands.voice_dynamic)
-    async def voice_dynamic(self, ctx: Context):
-        if len(ctx.message.content.lstrip(ctx.prefix).split()) > 2:
-            if ctx.invoked_subcommand is None:
-                raise UserInputError
-            return
-
+    async def dynamic_list(self, ctx: ApplicationContext):
         embed = Embed(title=t.voice_channel, colour=Colors.Voice)
 
         group: DynGroup
@@ -1159,10 +1177,11 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 if not voice_channel:
                     await db.delete(channel)
                     continue
-                idx = voice_channel.category.position
+                idx = voice_channel.category.position if voice_channel.category else 0
 
                 if channel.locked:
-                    if voice_channel.overwrites_for(voice_channel.guild.get_role(channel.group.user_role)).view_channel:
+                    user_r = voice_channel.guild.get_role(channel.group.user_role)
+                    if user_r and voice_channel.overwrites_for(user_r).view_channel:
                         icon = "lock"
                     else:
                         icon = "man_detective"
@@ -1192,13 +1211,16 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             embed.set_footer(text=t.memo_meaning(name_to_emoji["memo"]))
         await send_long_embed(ctx, embed, paginate=True)
 
-    @voice_dynamic.command(name="require_whitespaces", aliases=["rw"])
+    @dynamic.command(
+        name="require_whitespaces",
+        description="Leerzeichen-Pflicht in Kanalnamen konfigurieren",
+    )
     @VoiceChannelPermission.dyn_write.check
-    async def require_whitespaces(self, ctx: Context, enabled: bool):
-        """
-        enable/disable the requirement to separate the parts of a voice channel name by whitespaces
-        """
-
+    async def require_whitespaces(
+        self,
+        ctx: ApplicationContext,
+        enabled: bool = Option(bool, description="Leerzeichen erforderlich machen (True) oder nicht (False)"),
+    ):
         embed = Embed(title=t.voice_channel, colour=Colors.Voice)
         await DynamicVoiceSettings.require_whitespaces.set(enabled)
         if enabled:
@@ -1209,11 +1231,18 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             await send_to_changelog(ctx.guild, t.log_whitespaces_no_longer_required)
         await reply(ctx, embed=embed)
 
-    @voice_dynamic.command(name="add", aliases=["a", "+"])
+    @dynamic.command(name="add", description="Neue dynamische Sprachkanal-Gruppe erstellen")
     @VoiceChannelPermission.dyn_write.check
-    @docs(t.commands.voice_dynamic_add)
-    async def voice_dynamic_add(
-        self, ctx: Context, user_role: Role | None, create_text_channel_by_default: bool, *, voice_channel: VoiceChannel
+    async def dynamic_add(
+        self,
+        ctx: ApplicationContext,
+        voice_channel: VoiceChannel = Option(VoiceChannel, description="Haupt-Sprachkanal der Gruppe"),
+        user_role: Role | None = Option(
+            Role, description="Nutzerrolle (Standard: @everyone)", required=False, default=None
+        ),
+        create_text_channel_by_default: bool = Option(
+            bool, description="Standardmäßig Textkanal erstellen", required=False, default=False
+        ),
     ):
         async with channel_locks[voice_channel.id]:
             everyone = voice_channel.guild.default_role
@@ -1241,10 +1270,13 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 ),
             )
 
-    @voice_dynamic.command(name="remove", aliases=["del", "d", "r", "-"])
+    @dynamic.command(name="remove", description="Dynamische Sprachkanal-Gruppe entfernen")
     @VoiceChannelPermission.dyn_write.check
-    @docs(t.commands.voice_dynamic_remove)
-    async def voice_dynamic_remove(self, ctx: Context, *, voice_channel: VoiceChannel):
+    async def dynamic_remove(
+        self,
+        ctx: ApplicationContext,
+        voice_channel: VoiceChannel = Option(VoiceChannel, description="Sprachkanal der zu entfernenden Gruppe"),
+    ):
         channel: DynChannel | None = await db.get(
             DynChannel, [DynChannel.group, DynGroup.channels], DynChannel.members, channel_id=voice_channel.id
         )
@@ -1268,17 +1300,14 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_dyn_group_removed)
 
-    @voice_dynamic.group(name="edit", aliases=["e"])
+    @dynamic.command(name="default_text_channel", description="Standard-Textkanal für dynamische Gruppe konfigurieren")
     @VoiceChannelPermission.dyn_write.check
-    @docs(t.commands.voice_dynamic_edit)
-    async def voice_dynamic_edit(self, ctx: Context):
-        if ctx.invoked_subcommand is None:
-            raise UserInputError
-
-    @voice_dynamic_edit.command(name="default_text_channel")
-    @VoiceChannelPermission.dyn_write.check
-    @docs(t.commands.edit_default_text_channel)
-    async def set_text_channel_default_mode(self, ctx: Context, active: bool, voice_channel: VoiceChannel):
+    async def set_text_channel_default_mode(
+        self,
+        ctx: ApplicationContext,
+        voice_channel: VoiceChannel = Option(VoiceChannel, description="Sprachkanal der dynamischen Gruppe"),
+        active: bool = Option(bool, description="Textkanal standardmäßig erstellen (True/False)"),
+    ):
         channel: DynChannel | None = await db.get(
             DynChannel, [DynChannel.group, DynGroup.channels], DynChannel.members, channel_id=voice_channel.id
         )
@@ -1293,9 +1322,8 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             t.log_dyn_group_edited(t.default_text_channels_active if active else t.default_text_channels_not_active),
         )
 
-    @voice.command(name="help", aliases=["commands", "c"])
-    @docs(t.commands.help)
-    async def voice_help(self, ctx: Context):
+    @voice.command(name="help", description="Hilfe zu Voice-Befehlen anzeigen")
+    async def voice_help(self, ctx: ApplicationContext):
         message = await reply(ctx, embed=await get_commands_embed())
 
         if channel := await DynChannel.get(text_id=ctx.channel.id):
@@ -1303,41 +1331,58 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         if channel := await DynChannel.get(channel_id=ctx.channel.id):
             await self.update_control_message(channel, message)
 
-    @voice.command(name="info", aliases=["i"])
-    @docs(t.commands.voice_info)
-    async def voice_info(self, ctx: Context, *, voice_channel: VoiceChannel | Member | None = None):
-        if not voice_channel:
-            if channel := await db.get(DynChannel, channel_id=ctx.channel.id):
-                voice_channel = self.bot.get_channel(channel.channel_id)
-            if not channel:
-                if channel := await db.get(DynChannel, text_id=ctx.channel.id):
-                    voice_channel = self.bot.get_channel(channel.channel_id)
+    @voice.command(name="info", description="Informationen über einen Sprachkanal anzeigen")
+    async def voice_info(
+        self,
+        ctx: ApplicationContext,
+        voice_channel: VoiceChannel | None = Option(
+            VoiceChannel, description="Sprachkanal (optional)", required=False, default=None
+        ),
+        member: Member | None = Option(
+            Member, description="Mitglied im Sprachkanal (optional)", required=False, default=None
+        ),
+    ):
+        target_channel: VoiceChannel | None = voice_channel
+        if not target_channel:
+            if member and member.voice:
+                target_channel = member.voice.channel
+            elif ctx.author.voice:
+                target_channel = ctx.author.voice.channel
 
-        if not isinstance(voice_channel, VoiceChannel):  # no user given and voice channel not found yet
-            member = voice_channel or ctx.author
-            if not member.voice:  # given member or author is not in voice
-                if not voice_channel:  # author not in voice
-                    raise CommandError(t.not_in_voice)
-                if await self.is_teamler(ctx.author):  # given member not in voice and we are teamler
-                    raise CommandError(t.user_not_in_voice)
-                raise CommandError(tg.permission_denied)  # given member not in voice and we are not teamler
-            voice_channel = member.voice.channel
+        if not target_channel:
+            if channel := await db.get(DynChannel, channel_id=ctx.channel.id):
+                target_channel = self.bot.get_channel(channel.channel_id)
+            elif channel := await db.get(DynChannel, text_id=ctx.channel.id):
+                target_channel = self.bot.get_channel(channel.channel_id)
+
+        if not isinstance(target_channel, VoiceChannel):
+            if member:
+                if not member.voice:
+                    if await self.is_teamler(ctx.author):
+                        raise CommandError(t.user_not_in_voice)
+                    raise CommandError(tg.permission_denied)
+                target_channel = member.voice.channel
+            elif not ctx.author.voice:
+                raise CommandError(t.not_in_voice)
 
         channel: DynChannel | None = await db.get(
-            DynChannel, [DynChannel.group, DynGroup.channels], DynChannel.members, channel_id=voice_channel.id
+            DynChannel, [DynChannel.group, DynGroup.channels], DynChannel.members, channel_id=target_channel.id
         )
         if not channel:
             raise CommandError(t.dyn_group_not_found)
 
-        if not voice_channel.permissions_for(ctx.author).connect:
+        if not target_channel.permissions_for(ctx.author).connect:
             raise CommandError(tg.permission_denied)
 
         await self.send_voice_info(ctx, channel)
 
-    async def send_voice_info(self, target: Messageable | InteractionResponse, dyn_channel: DynChannel):
+    async def send_voice_info(
+        self, target: Messageable | InteractionResponse | ApplicationContext, dyn_channel: DynChannel
+    ):
         voice_channel: VoiceChannel = self.bot.get_channel(dyn_channel.channel_id)
         if dyn_channel.locked:
-            if voice_channel.overwrites_for(voice_channel.guild.get_role(dyn_channel.group.user_role)).view_channel:
+            user_r = voice_channel.guild.get_role(dyn_channel.group.user_role)
+            if user_r and voice_channel.overwrites_for(user_r).view_channel:
                 state = t.state.locked
             else:
                 state = t.state.hidden
@@ -1384,14 +1429,19 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             embed.add_field(name=t.voice_members.blacklisted(cnt=len(out)), value="\n".join(out), inline=False)
 
         messages = await send_long_embed(target, embed, paginate=True)
-        if isinstance(target, InteractionResponse):
+        if isinstance(target, (InteractionResponse, ApplicationContext)):
             return
         await self.update_control_message(dyn_channel, messages[-1])
 
-    @voice.command(name="rename")
+    @voice.command(name="rename", description="Aktuellen Sprachkanal umbenennen")
     @optional_permissions(VoiceChannelPermission.dyn_rename, VoiceChannelPermission.override_owner)
-    @docs(t.commands.voice_rename)
-    async def voice_rename(self, ctx: Context, *, name: str | None):
+    async def voice_rename(
+        self,
+        ctx: ApplicationContext,
+        name: str | None = Option(
+            str, description="Neuer Kanalname (leer für Zufallsname)", required=False, default=None
+        ),
+    ):
         channel, voice_channel, text_channel = await self.get_channel(ctx.author, check_owner=True)
         old_name = voice_channel.name
 
@@ -1399,7 +1449,7 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             name = await self.get_channel_name(ctx.guild)
         elif not self.check_name(name, False, await DynamicVoiceSettings.require_whitespaces.get())[0]:
             if not await VoiceChannelPermission.dyn_rename.check_permissions(ctx.author):
-                raise CommandError(t.no_custom_name(prefix=await get_prefix()))
+                raise CommandError(t.no_custom_name(prefix="/"))
 
         if any(c.id != voice_channel.id and name == c.name for c in voice_channel.guild.voice_channels):
             if not await Confirmation().run(ctx, t.rename_description):
@@ -1415,23 +1465,25 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             raise CommandError(t.rename_failed)
 
         await self.send_voice_msg(channel, t.voice_channel, [t.renamed(ctx.author.mention, old_name, name)])
-        await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+        await reply(ctx, content=name_to_emoji["white_check_mark"])
 
-    @voice.command(name="create_text_channel", aliases=["ctc", "tc"])
+    @voice.command(name="create_text_channel", description="Textkanal für den Sprachkanal erstellen")
     @optional_permissions(VoiceChannelPermission.override_owner)
-    @docs(t.commands.voice_create_text_channel)
-    async def create_text_channel_command(self, ctx: Context):
+    async def create_text_channel_command(self, ctx: ApplicationContext):
         channel, voice_channel, text_channel = await self.get_channel(ctx.author, check_owner=True)
         async with channel_locks[channel.channel_id]:
             if text_channel:
                 raise CommandError(t.text_channel_exists(text_channel.mention))
             await self.create_text_channel(channel, voice_channel, ctx)
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+            await reply(ctx, content=name_to_emoji["white_check_mark"])
 
-    @voice.command(name="owner", aliases=["o"])
+    @voice.command(name="owner", description="Owner-Rechte des Sprachkanals übertragen")
     @optional_permissions(VoiceChannelPermission.override_owner)
-    @docs(t.commands.voice_owner)
-    async def voice_owner(self, ctx: Context, member: Member):
+    async def voice_owner(
+        self,
+        ctx: ApplicationContext,
+        member: Member = Option(Member, description="Neuer Owner des Sprachkanals"),
+    ):
         channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True)
 
         async with channel_locks[channel.channel_id]:
@@ -1445,12 +1497,11 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
             channel.owner_override = member.id
             await self.cache_owner(channel, member)
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+            await reply(ctx, content=name_to_emoji["white_check_mark"])
 
-    @voice.command(name="lock", aliases=["l"])
+    @voice.command(name="lock", description="Sprachkanal sperren")
     @optional_permissions(VoiceChannelPermission.override_owner)
-    @docs(t.commands.voice_lock)
-    async def voice_lock(self, ctx: Context):
+    async def voice_lock(self, ctx: ApplicationContext):
         channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True)
 
         async with channel_locks[channel.channel_id]:
@@ -1458,12 +1509,11 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 raise CommandError(t.already_locked)
 
             await self.lock_channel(ctx.author, channel, voice_channel, hide=False)
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+            await reply(ctx, content=name_to_emoji["white_check_mark"])
 
-    @voice.command(name="hide", aliases=["h"])
+    @voice.command(name="hide", description="Sprachkanal verstecken")
     @optional_permissions(VoiceChannelPermission.override_owner)
-    @docs(t.commands.voice_hide)
-    async def voice_hide(self, ctx: Context):
+    async def voice_hide(self, ctx: ApplicationContext):
         channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True)
 
         async with channel_locks[channel.channel_id]:
@@ -1473,12 +1523,11 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 raise CommandError(t.already_hidden)
 
             await self.lock_channel(ctx.author, channel, voice_channel, hide=True)
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+            await reply(ctx, content=name_to_emoji["white_check_mark"])
 
-    @voice.command(name="show", aliases=["s", "unhide"])
+    @voice.command(name="show", description="Versteckten Sprachkanal wieder anzeigen")
     @optional_permissions(VoiceChannelPermission.override_owner)
-    @docs(t.commands.voice_show)
-    async def voice_show(self, ctx: Context):
+    async def voice_show(self, ctx: ApplicationContext):
         channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True)
         async with channel_locks[channel.channel_id]:
             user_role = voice_channel.guild.get_role(channel.group.user_role)
@@ -1486,61 +1535,61 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 raise CommandError(t.not_hidden)
 
             await self.unhide_channel(ctx.author, channel, voice_channel)
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+            await reply(ctx, content=name_to_emoji["white_check_mark"])
 
-    @voice.command(name="unlock", aliases=["u"])
+    @voice.command(name="unlock", description="Sprachkanal entsperren")
     @optional_permissions(VoiceChannelPermission.override_owner)
-    @docs(t.commands.voice_unlock)
-    async def voice_unlock(self, ctx: Context):
+    async def voice_unlock(self, ctx: ApplicationContext):
         channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True)
         async with channel_locks[channel.channel_id]:
             if not channel.locked:
                 raise CommandError(t.already_unlocked)
 
             await self.unlock_channel(ctx.author, channel, voice_channel)
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+            await reply(ctx, content=name_to_emoji["white_check_mark"])
 
-    @voice.command(name="no_ping", aliases=["np", "dp", "fp"])
+    @voice.command(name="no_ping", description="Beitritts-Pings im Sprachkanal deaktivieren")
     @optional_permissions(VoiceChannelPermission.override_owner)
-    @docs(t.commands.disable_ping)
-    async def disable_ping(self, ctx: Context):
+    async def disable_ping(self, ctx: ApplicationContext):
         channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True)
         async with channel_locks[channel.channel_id]:
             if channel.no_ping:
                 raise CommandError(t.pings_already_inactive)
 
             await self.change_channel_ping(ctx.author, channel, no_ping=True)
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+            await reply(ctx, content=name_to_emoji["white_check_mark"])
 
-    @voice.command(name="ping", aliases=["p", "ep", "ap"])
+    @voice.command(name="ping", description="Beitritts-Pings im Sprachkanal aktivieren")
     @optional_permissions(VoiceChannelPermission.override_owner)
-    @docs(t.commands.enable_ping)
-    async def enable_ping(self, ctx: Context):
+    async def enable_ping(self, ctx: ApplicationContext):
         channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True)
         async with channel_locks[channel.channel_id]:
             if not channel.no_ping:
                 raise CommandError(t.pings_already_active)
 
             await self.change_channel_ping(ctx.author, channel, no_ping=False)
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+            await reply(ctx, content=name_to_emoji["white_check_mark"])
 
-    @voice.command(name="soundboard", aliases=["sb"])
+    @voice.command(name="soundboard", description="Soundboard im Sprachkanal erlauben oder verbieten")
     @optional_permissions(VoiceChannelPermission.override_owner)
-    @docs(t.commands.voice_soundboard)
-    async def vc_soundboard(self, ctx: Context, allow: bool):
+    async def vc_soundboard(
+        self,
+        ctx: ApplicationContext,
+        allow: bool = Option(bool, description="Soundboard erlauben (True) oder verbieten (False)"),
+    ):
         def get_overwrites(overwrites, allow_soundboard: bool, default_role):
             perms = []
             if overwrites is not None:
                 for target, perm in overwrites.items():
-                    allow, deny = perm.pair()
+                    allow_val, deny_val = perm.pair()
                     if target == default_role:
                         if allow_soundboard:
-                            allow.value |= 1 << 42
+                            allow_val.value |= 1 << 42
                         else:
-                            allow.value &= ~(1 << 42)
+                            allow_val.value &= ~(1 << 42)
                     payload = {
-                        "allow": allow.value,
-                        "deny": deny.value,
+                        "allow": allow_val.value,
+                        "deny": deny_val.value,
                         "id": target.id,
                         "type": (
                             _Overwrites.ROLE
@@ -1552,49 +1601,42 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                     perms.append(payload)
             return perms
 
-        dc_channel: VoiceChannel = ctx.channel
-        channel, _, _ = await self.get_channel(ctx.author, check_owner=True)
+        channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True)
         async with channel_locks[channel.channel_id]:
-            sb_allowed = dc_channel.permissions_for(ctx.guild.default_role).value & 1 << 42
+            sb_allowed = voice_channel.permissions_for(ctx.guild.default_role).value & 1 << 42
             if allow and sb_allowed:
                 raise CommandError(t.soundboard_already_allowed)
             if not allow and not sb_allowed:
                 raise CommandError(t.soundboard_already_denied)
 
             if allow:
-                options = {"permission_overwrites": get_overwrites(
-                    dc_channel.overwrites,
+                opts = {"permission_overwrites": get_overwrites(
+                    voice_channel.overwrites,
                     True,
                     ctx.guild.default_role
                 )}
-                await dc_channel._state.http.edit_channel(
-                    dc_channel.id, **options
+                await voice_channel._state.http.edit_channel(
+                    voice_channel.id, **opts
                 )
                 await self.send_voice_msg(channel, t.voice_channel, [t.soundboard_allowed(ctx.author.mention)])
             else:
-                options = {"permission_overwrites": get_overwrites(
-                    dc_channel.overwrites,
+                opts = {"permission_overwrites": get_overwrites(
+                    voice_channel.overwrites,
                     False,
                     ctx.guild.default_role
                 )}
-                await dc_channel._state.http.edit_channel(
-                    dc_channel.id, **options
+                await voice_channel._state.http.edit_channel(
+                    voice_channel.id, **opts
                 )
                 await self.send_voice_msg(channel, t.voice_channel, [t.soundboard_denied(ctx.author.mention)])
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+            await reply(ctx, content=name_to_emoji["white_check_mark"])
 
-    @voice.command(name="join_request", aliases=["j", "jr"])
-    async def join_request(self, ctx: Context, channel: DynamicVoiceConverter):
-        """
-        send a join request for a voice channel
-
-        you can use
-        - the channel id of voice- or text channel
-        - a link ("copy link")
-        - or the name (needs to ble enclosed in quotes if it contains whitespaces)
-        to select the channel
-        """
-        channel: TextChannel | VoiceChannel
+    @voice.command(name="join_request", description="Beitrittsanfrage für einen gesperrten Sprachkanal senden")
+    async def join_request(
+        self,
+        ctx: ApplicationContext,
+        channel: VoiceChannel = Option(VoiceChannel, description="Ziel-Sprachkanal"),
+    ):
         dyn_channel, voice_channel, _ = await self.get_channel(
             ctx.author, check_locked=True, check_owner=False, channel=channel
         )
@@ -1609,9 +1651,9 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
     @run_as_task
     @db_wrapper
-    async def request_join(self, ctx: Context, dyn_channel: DynChannel, voice_channel: VoiceChannel):
+    async def request_join(self, ctx: ApplicationContext, dyn_channel: DynChannel, voice_channel: VoiceChannel):
         async with join_requests[ctx.author.id]:
-            await ctx.message.add_reaction(name_to_emoji["postal_horn"])
+            await reply(ctx, content=f"{name_to_emoji['postal_horn']} Anfrage an Kanal-Owner gesendet...")
             owner = await self.get_owner_from_cache(dyn_channel)
             if dyn_channel.no_ping:
                 add = await Confirmation(user=owner, delete_after_confirm=None, timeout=120).run(
@@ -1626,44 +1668,41 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             try:
                 if add:
                     await self.add_to_channel(dyn_channel, voice_channel, [ctx.author])
-                    await ctx.reply(t.request_approved)
+                    await reply(ctx, content=t.request_approved)
                 else:
-                    await ctx.reply(t.request_denied)
+                    await reply(ctx, content=t.request_denied)
             except HTTPException:
                 pass
 
-    @voice.command(name="add", aliases=["a", "+", "invite"])
+    @voice.command(name="add", description="Nutzer zum gesperrten Sprachkanal einladen")
     @optional_permissions(VoiceChannelPermission.override_owner)
-    @docs(t.commands.voice_add)
-    async def voice_add(self, ctx: Context, *members: Greedy[Member]):
-        members: set[Member] = set(members)
-        if not members:
-            raise UserInputError
-
+    async def voice_add(
+        self,
+        ctx: ApplicationContext,
+        member: Member = Option(Member, description="Hinzuzufügendes Mitglied"),
+    ):
         channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True, check_locked=False)
 
         async with channel_locks[channel.channel_id]:
-            if self.bot.user in members:
+            if member == self.bot.user:
                 raise CommandError(t.cannot_add_user(self.bot.user.mention))
 
-            await self.add_to_channel(channel, voice_channel, list(members))
+            await self.add_to_channel(channel, voice_channel, [member])
+            await reply(ctx, content=name_to_emoji["white_check_mark"])
 
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
-
-    @voice.command(name="remove", aliases=["r", "-", "kick", "k", "blacklist", "bl"])
+    @voice.command(name="remove", description="Nutzer aus dem Sprachkanal entfernen oder sperren")
     @optional_permissions(VoiceChannelPermission.override_owner)
-    @docs(t.commands.voice_remove)
-    async def voice_remove(self, ctx: Context, *members: Greedy[Member]):
-        members: set[Member] = set(members)
-        if not members:
-            raise UserInputError
-
+    async def voice_remove(
+        self,
+        ctx: ApplicationContext,
+        member: Member = Option(Member, description="Zu entfernendes Mitglied"),
+    ):
         channel, voice_channel, _ = await self.get_channel(ctx.author, check_owner=True, check_locked=False)
 
         async with channel_locks[channel.channel_id]:
-            if self.bot.user in members:
+            if member == self.bot.user:
                 raise CommandError(t.cannot_remove_user(self.bot.user.mention))
-            if ctx.author in members:
+            if member == ctx.author:
                 raise CommandError(t.cannot_remove_user(ctx.author.mention))
 
             team_roles: list[Role] = [
@@ -1672,25 +1711,16 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 if (team_role := ctx.guild.get_role(await RoleSettings.get(role_name)))
                 if check_voice_permissions(voice_channel, team_role)
             ]
-            for member in members:
-                # if member not in voice_channel.overwrites:
-                #     raise CommandError(t.not_added(member.mention))
-                if any(role in member.roles for role in team_roles):
+            for role in team_roles:
+                if role in member.roles:
                     raise CommandError(t.cannot_remove_user(member.mention))
 
-            await self.remove_from_channel(channel, voice_channel, list(members))
+            await self.remove_from_channel(channel, voice_channel, [member])
+            await reply(ctx, content=name_to_emoji["white_check_mark"])
 
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
-
-    @voice.group(name="role_links", aliases=["rl"])
+    @role_links.command(name="list", description="Alle Rollen-Verknüpfungen für Sprachkanäle auflisten")
     @VoiceChannelPermission.link_read.check
-    @docs(t.commands.voice_link)
-    async def voice_link(self, ctx: Context):
-        if len(ctx.message.content.lstrip(ctx.prefix).split()) > 2:
-            if ctx.invoked_subcommand is None:
-                raise UserInputError
-            return
-
+    async def voice_link_list(self, ctx: ApplicationContext):
         guild: Guild = ctx.guild
 
         out: list[tuple[VoiceChannel, Role]] = []
@@ -1739,10 +1769,14 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
         return members
 
-    @voice_link.command(name="add", aliases=["a", "+"])
+    @role_links.command(name="add", description="Rollen-Verknüpfung für einen Sprachkanal hinzufügen")
     @VoiceChannelPermission.link_write.check
-    @docs(t.commands.voice_link_add)
-    async def voice_link_add(self, ctx: Context, voice_channel: VoiceChannel, *, role: Role):
+    async def voice_link_add(
+        self,
+        ctx: ApplicationContext,
+        voice_channel: VoiceChannel = Option(VoiceChannel, description="Sprachkanal"),
+        role: Role = Option(Role, description="Rolle"),
+    ):
         if channel := await DynChannel.get(channel_id=voice_channel.id):
             voice_id = channel.group_id
         else:
@@ -1762,10 +1796,14 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_link_created(voice_channel, role))
 
-    @voice_link.command(name="remove", aliases=["del", "r", "d", "-"])
+    @role_links.command(name="remove", description="Rollen-Verknüpfung für einen Sprachkanal entfernen")
     @VoiceChannelPermission.link_write.check
-    @docs(t.commands.voice_link_remove)
-    async def voice_link_remove(self, ctx: Context, voice_channel: VoiceChannel, *, role: Role):
+    async def voice_link_remove(
+        self,
+        ctx: ApplicationContext,
+        voice_channel: VoiceChannel = Option(VoiceChannel, description="Sprachkanal"),
+        role: Role = Option(Role, description="Rolle"),
+    ):
         if channel := await DynChannel.get(channel_id=voice_channel.id):
             voice_id = channel.group_id
         else:
@@ -1784,15 +1822,9 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_link_deleted(voice_channel, role))
 
-    @voice.group(name="log", aliases=["vl"])
+    @log.command(name="overview", description="Übersicht über konfiguriertes Voice-Logging anzeigen")
     @VoiceChannelPermission.log_read.check
-    @docs(t.commands.voice_log)
-    async def voice_log(self, ctx: Context):
-        if ctx.subcommand_passed:
-            if ctx.invoked_subcommand is None:
-                raise UserInputError
-            return
-
+    async def voice_log_overview(self, ctx: ApplicationContext):
         guild: Guild = ctx.guild
 
         out: list[tuple[VoiceChannel | CategoryChannel | StageChannel, int]] = []
@@ -1807,7 +1839,10 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
         embed = Embed(title=t.voice_channel, color=Colors.Voice)
         embed.description = "\n".join(
-            f":small_orange_diamond: {channel.mention}: {mode}" if isinstance(channel, VoiceChannel) else f":file_folder: {channel.mention}: {mode}" for channel, mode in out
+            f":small_orange_diamond: {channel.mention}: {mode}"
+            if isinstance(channel, VoiceChannel)
+            else f":file_folder: {channel.mention}: {mode}"
+            for channel, mode in out
         )
 
         embed.description += "\n\n" + t.voice_log_mode_explanation
@@ -1818,10 +1853,17 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
         await send_long_embed(ctx, embed)
 
-    @voice_log.command(name="set", aliases=["s", "a", "+"])
+    @log.command(name="set", description="Voice-Logging für einen Sprachkanal oder eine Kategorie konfigurieren")
     @VoiceChannelPermission.log_set.check
-    @docs(f"{t.commands.voice_log_set}\n\n{t.voice_log_mode_explanation}")
-    async def voice_log_set(self, ctx: Context, channel: VoiceChannel | CategoryChannel | StageChannel, mode: int):
+    async def voice_log_set(
+        self,
+        ctx: ApplicationContext,
+        channel: VoiceChannel | CategoryChannel | StageChannel = Option(
+            channel_types=[ChannelType.voice, ChannelType.category, ChannelType.stage_voice],
+            description="Sprachkanal oder Kategorie",
+        ),
+        mode: int = Option(int, description="Log-Modus (0-15)", min_value=0, max_value=15),
+    ):
         if await DynChannel.get(channel_id=channel.id):
             raise CommandError(t.is_dynamic_voice)
 
@@ -1830,19 +1872,33 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
         await VoiceChannelLog.create(str(channel.id), mode)
 
-        if isinstance(channel, VoiceChannel) or isinstance(channel, StageChannel):
-            embed = Embed(title=t.voice_channel, colour=Colors.Voice, description=t.voice_log_created_channel(channel.mention, mode))
+        if isinstance(channel, (VoiceChannel, StageChannel)):
+            embed = Embed(
+                title=t.voice_channel,
+                colour=Colors.Voice,
+                description=t.voice_log_created_channel(channel.mention, mode),
+            )
             await reply(ctx, embed=embed)
             await send_to_changelog(ctx.guild, t.log_voice_log_created_channel(mode, channel.mention))
         else:
-            embed = Embed(title=t.voice_channel, colour=Colors.Voice, description=t.voice_log_created_category(channel.mention, mode))
+            embed = Embed(
+                title=t.voice_channel,
+                colour=Colors.Voice,
+                description=t.voice_log_created_category(channel.mention, mode),
+            )
             await reply(ctx, embed=embed)
             await send_to_changelog(ctx.guild, t.log_voice_log_created_category(mode, channel.mention))
 
-    @voice_log.command(name="remove", aliases=["del", "r", "d", "-"])
+    @log.command(name="remove", description="Voice-Logging für einen Sprachkanal oder eine Kategorie entfernen")
     @VoiceChannelPermission.log_set.check
-    @docs(t.commands.voice_log_remove)
-    async def voice_log_remove(self, ctx: Context, channel: VoiceChannel | CategoryChannel | StageChannel):
+    async def voice_log_remove(
+        self,
+        ctx: ApplicationContext,
+        channel: VoiceChannel | CategoryChannel | StageChannel = Option(
+            channel_types=[ChannelType.voice, ChannelType.category, ChannelType.stage_voice],
+            description="Sprachkanal oder Kategorie",
+        ),
+    ):
         if await DynChannel.get(channel_id=channel.id):
             raise CommandError(t.is_dynamic_voice)
 
@@ -1852,60 +1908,70 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
 
         await db.delete(db_channel)
 
-        if isinstance(channel, VoiceChannel) or isinstance(channel, StageChannel):
-            embed = Embed(title=t.voice_channel, colour=Colors.Voice, description=t.voice_log_removed_channel(channel.mention))
+        if isinstance(channel, (VoiceChannel, StageChannel)):
+            embed = Embed(
+                title=t.voice_channel,
+                colour=Colors.Voice,
+                description=t.voice_log_removed_channel(channel.mention),
+            )
             await reply(ctx, embed=embed)
             await send_to_changelog(ctx.guild, t.log_voice_log_removed_channel(channel.mention))
         else:
-            embed = Embed(title=t.voice_channel, colour=Colors.Voice, description=t.voice_log_removed_category(channel.mention))
+            embed = Embed(
+                title=t.voice_channel,
+                colour=Colors.Voice,
+                description=t.voice_log_removed_category(channel.mention),
+            )
             await reply(ctx, embed=embed)
             await send_to_changelog(ctx.guild, t.log_voice_log_removed_category(channel.mention))
 
+    @whitelist.command(name="list", description="Alle erlaubten Phrasen für diesen Server auflisten")
+    @VoiceChannelPermission.dyn_whitelist_list.check
+    async def wl_list(self, ctx: ApplicationContext):
+        embed = Embed(
+            title=t.voice_channel,
+            colour=Colors.Voice,
+            description=t.phrases_list(", ".join(map(escape_codeblock, sorted(self.custom_names))))
+            + "\n\n"
+            + t.phrases_list_link
+            if self.custom_names
+            else t.no_phrases_allowed + "\n\n" + t.phrases_list_link,
+        )
+        await send_long_embed(ctx, embed=embed)
 
-    @voice.group(aliases=["wl"])
-    @guild_only()
-    @VoiceChannelPermission.dyn_whitelist_read.check
-    @docs(t.commands.whitelist)
-    async def whitelist(self, ctx: Context):
-        if ctx.invoked_subcommand is None:
-            raise UserInputError
-
-    @whitelist.command(name="test", aliases=["check", "t", "c"])
+    @whitelist.command(name="test", description="Kanalnamen auf Whitelist-Konformität prüfen")
     @VoiceChannelPermission.dyn_whitelist_check.check
-    async def whitelist_check(self, ctx: Context, *, name: str):
-        """
-        check a name for whitelist conformity
-
-        This command checks if the given name is an allowed name for a dynamic voice channel.
-        Depending on the target voice channel, you might need to separate the pars of this name by whitespaces.
-        This command will ignore this requirement entirely.
-        """
+    async def whitelist_check(
+        self,
+        ctx: ApplicationContext,
+        name: str = Option(str, description="Zu prüfender Kanalname"),
+    ):
         ok, all_name_fragments = self.check_name(name, False, False)
         embed = Embed(colour=Colors.Voice, title=t.voice_channel)
         if not ok:
-            embed.description = t.name_no_matches(prefix=await get_prefix())
+            embed.description = t.name_no_matches(prefix="/")
         else:
             embed.description = t.name_matches(cnt=len(all_name_fragments))
-        await ctx.reply(embed=embed)
+        await reply(ctx, embed=embed)
 
-    @whitelist.command(name="test_recursive", aliases=["check_recursive", "tr", "cr"])
+    @whitelist.command(
+        name="test_recursive",
+        description="Kanalnamen rekursiv auf Whitelist-Konformität prüfen und Teile auflisten",
+    )
     @VoiceChannelPermission.dyn_whitelist_check_parts.check
-    async def whitelist_check_recursive(self, ctx: Context, *, name: str):
-        """
-        check a name for whitelist conformity and list all parts
-
-        This command checks if the given name is an allowed name for a dynamic voice channel.
-        Depending on the target voice channel, you might need to separate the pars of this name by whitespaces.
-        This command will ignore this requirement entirely.
-        """
+    async def whitelist_check_recursive(
+        self,
+        ctx: ApplicationContext,
+        name: str = Option(str, description="Zu prüfender Kanalname"),
+    ):
         ok, all_name_fragments = self.check_name(name, True, False)
         embed = Embed(colour=Colors.Voice, title=t.voice_channel)
         if not ok:
             embed.description = t.name_no_matches
-            await ctx.reply(embed=embed)
+            await reply(ctx, embed=embed)
         else:
             embed.description = t.name_matches_parts(cnt=len(all_name_fragments))
-            embed.set_footer(text=t.parts_footer_custom(prefix=await get_prefix()))
+            embed.set_footer(text=t.parts_footer_custom(prefix="/"))
             for i, combination in enumerate(all_name_fragments):
                 embed.add_field(
                     name=t.name_match_combination(i + 1),
@@ -1913,34 +1979,13 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                 )
             await send_long_embed(ctx, embed, paginate=True, repeat_footer=True, repeat_title=True)
 
-    @whitelist.command(name="list", aliases=["l", "s"])
-    @VoiceChannelPermission.dyn_whitelist_list.check
-    async def wl_list(self, ctx: Context):
-        """
-        List all allowed phrases for this server
-
-        Show all phrases which can be used for renaming dynamic voice channels.
-        Will not list phrases, which are on lists in files.
-        """
-        embed = Embed(
-            title=t.voice_channel,
-            colour=Colors.Voice,
-            description=t.phrases_list(", ".join(map(escape_codeblock, sorted(self.custom_names)))) + "\n\n" + t.phrases_list_link
-            if self.custom_names
-            else t.no_phrases_allowed + "\n\n" + t.phrases_list_link,
-        )
-        await send_long_embed(ctx, embed=embed)
-
-    @whitelist.command(name="add", aliases=["a", "+"])
+    @whitelist.command(name="add", description="Phrase für Kanalnamen zur Whitelist hinzufügen")
     @VoiceChannelPermission.dyn_whitelist_write.check
-    async def add(self, ctx: Context, *, name: str):
-        """
-        Allow ONE phrase for renaming custom voice channels (whitespaces are usable characters!)
-
-        Allow a phrase for renaming dynamic voice channels.
-        Phrases are case-insensitive.
-        Phrases are unique.
-        """
+    async def whitelist_add(
+        self,
+        ctx: ApplicationContext,
+        name: str = Option(str, description="Phrase (max. 25 Zeichen)"),
+    ):
         name = name.strip().lower()
         if len(name) > 25:
             raise CommandError(t.phrase_too_long)
@@ -1954,17 +1999,13 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_phrase_whitelisted(escape_codeblock(name)))
 
-    @whitelist.command(name="remove", aliases=["del", "r", "d", "-"])
+    @whitelist.command(name="remove", description="Phrase für Kanalnamen von der Whitelist entfernen")
     @VoiceChannelPermission.dyn_whitelist_write.check
-    async def remove(self, ctx: Context, *, name: str):
-        """
-        Remove a phrase for renaming custom voice channels
-
-        Remove a phrase for renaming dynamic voice channels.
-        Phrases are case-insensitive.
-        Phrases are unique.
-        The phrase will be sanitized; all unusable characters will be removed.
-        """
+    async def whitelist_remove(
+        self,
+        ctx: ApplicationContext,
+        name: str = Option(str, description="Zu entfernende Phrase"),
+    ):
         name = name.strip().lower()
         if not (item := await db.get(AllowedChannelName, name=name.lower())):
             raise CommandError(t.phrase_not_existing)
@@ -1975,7 +2016,6 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
         )
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_phrase_whitelist_removed(escape_codeblock(name)))
-
 
     @commands.command()
     async def test_names(self, ctx: Context, start: int):
@@ -2003,7 +2043,6 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
             channel_count += 1
         await ctx.reply("DONE")
 
-
     @commands.command()
     @max_concurrency(1)
     async def delete_test_names(self, ctx: Context):
@@ -2017,9 +2056,6 @@ class VoiceChannelCog(Cog, name="Voice Channels"):
                     await text_channel.delete()
                 await category.delete()
         await ctx.reply("DONE")
-
-
-
 
 
 """
