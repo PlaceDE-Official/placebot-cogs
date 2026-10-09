@@ -3,12 +3,12 @@ from datetime import datetime
 from typing import Optional
 
 from aiohttp import ClientError, ClientSession
-from discord import Embed, Forbidden, Guild, Message
-from discord.ext import commands
-from discord.ext.commands import CommandError, Context, UserInputError, guild_only
+from discord import Embed, Forbidden, Guild, Message, Option, SlashCommandGroup, TextChannel
+from discord.commands import ApplicationContext
+from discord.ext.commands import CommandError
 
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import docs, reply
+from PyDrocsid.command import reply
 from PyDrocsid.database import db, filter_by
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.emojis import emoji_to_name
@@ -162,16 +162,15 @@ class MediaOnlyCog(Cog, name="MediaOnly"):
     async def on_message_edit(self, _, after: Message):
         await check_message(after)
 
-    @commands.group(aliases=["mo"])
-    @MediaOnlyPermission.read.check
-    @guild_only()
-    @docs(t.commands.mediaonly)
-    async def mediaonly(self, ctx: Context):
-        if ctx.subcommand_passed is not None:
-            if ctx.invoked_subcommand is None:
-                raise UserInputError
-            return
+    mediaonly = SlashCommandGroup(
+        name="mediaonly",
+        description="Media-Only-Kanäle konfigurieren",
+        guild_only=True,
+    )
 
+    @mediaonly.command(name="overview", description="Übersicht aller Media-Only-Kanäle anzeigen")
+    @MediaOnlyPermission.read.check
+    async def mediaonly_overview(self, ctx: ApplicationContext):
         guild: Guild = ctx.guild
         out = []
         async for channel in MediaOnlyChannel.stream():
@@ -198,11 +197,15 @@ class MediaOnlyCog(Cog, name="MediaOnly"):
             embed.description = t.no_media_only_channels
             await reply(ctx, embed=embed)
 
-    @mediaonly.command(name="add", aliases=["a", "+"])
+    @mediaonly.command(name="add", description="Einen Kanal als Media-Only einrichten")
     @MediaOnlyPermission.write.check
-    @docs(f"{t.commands.add}\n{t.mode_explanation}")
     async def mediaonly_add(
-        self, ctx: Context, channel: GuildMessageable, mode: int, max_length: int | None = 0, log: bool = False
+        self,
+        ctx: ApplicationContext,
+        channel: TextChannel = Option(TextChannel, description="Kanal"),
+        mode: int = Option(int, description="Modus (1-7)"),
+        max_length: int = Option(int, description="Maximale Textlänge", required=False, default=0),
+        log: bool = Option(bool, description="Löschungen protokollieren", required=False, default=False),
     ):
         if not 1 <= mode <= 7:
             raise CommandError(t.mode_invalid)
@@ -219,10 +222,9 @@ class MediaOnlyCog(Cog, name="MediaOnly"):
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_channel_now_media_only(channel.mention, mode, max_length, log))
 
-    @mediaonly.command(name="remove", aliases=["del", "r", "d", "-"])
+    @mediaonly.command(name="remove", description="Media-Only-Status eines Kanals entfernen")
     @MediaOnlyPermission.write.check
-    @docs(t.commands.remove)
-    async def mediaonly_remove(self, ctx: Context, channel: GuildMessageable):
+    async def mediaonly_remove(self, ctx: ApplicationContext, channel: TextChannel = Option(TextChannel, description="Kanal")):
         if not (await MediaOnlyChannel.get(channel.id))[0]:
             raise CommandError(t.channel_not_media_only)
 

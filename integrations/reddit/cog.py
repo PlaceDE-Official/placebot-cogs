@@ -3,9 +3,10 @@ from datetime import datetime
 from typing import List, Optional
 
 from aiohttp import ClientSession
-from discord import Embed, TextChannel, Thread
-from discord.ext import commands, tasks
-from discord.ext.commands import CommandError, Context, UserInputError, guild_only
+from discord import Embed, Option, SlashCommandGroup, TextChannel, Thread
+from discord.commands import ApplicationContext
+from discord.ext import tasks
+from discord.ext.commands import CommandError
 
 from PyDrocsid.cog import Cog
 from PyDrocsid.command import reply
@@ -146,19 +147,15 @@ class RedditCog(Cog, name="Reddit"):
             print(e)
             self.reddit_loop.restart()
 
-    @commands.group()
+    reddit = SlashCommandGroup(
+        name="reddit",
+        description="Reddit-Integration verwalten",
+        guild_only=True,
+    )
+
+    @reddit.command(name="overview", description="Übersicht aller Reddit-Verknüpfungen anzeigen")
     @RedditPermission.read.check
-    @guild_only()
-    async def reddit(self, ctx: Context):
-        """
-        manage reddit integration
-        """
-
-        if ctx.subcommand_passed is not None:
-            if ctx.invoked_subcommand is None:
-                raise UserInputError
-            return
-
+    async def reddit_overview(self, ctx: ApplicationContext):
         embed = Embed(title=t.reddit, colour=Colors.Reddit)
 
         interval = await RedditSettings.interval.get()
@@ -182,50 +179,48 @@ class RedditCog(Cog, name="Reddit"):
 
         await reply(ctx, embed=embed)
 
-    @reddit.command(name="add", aliases=["a", "+"])
+    @reddit.command(name="add", description="Subreddit mit Kanal verknüpfen")
     @RedditPermission.write.check
-    async def reddit_add(self, ctx: Context, subreddit: str, channel: TextChannel | Thread):
-        """
-        create a link between a subreddit and a channel
-        """
-
-        if not (subreddit := await get_subreddit_name(subreddit)):
+    async def reddit_add(
+        self,
+        ctx: ApplicationContext,
+        subreddit: str = Option(str, description="Subreddit-Name"),
+        channel: TextChannel = Option(TextChannel, description="Zielkanal"),
+    ):
+        if not (subreddit_name := await get_subreddit_name(subreddit)):
             raise CommandError(t.subreddit_not_found)
 
         check_message_send_permissions(channel, check_embed=True)
 
-        if await db.exists(filter_by(RedditChannel, subreddit=subreddit, channel=channel.id)):
+        if await db.exists(filter_by(RedditChannel, subreddit=subreddit_name, channel=channel.id)):
             raise CommandError(t.reddit_link_already_exists)
 
-        await RedditChannel.create(subreddit, channel.id)
+        await RedditChannel.create(subreddit_name, channel.id)
         embed = Embed(title=t.reddit, colour=Colors.Reddit, description=t.reddit_link_created)
         await reply(ctx, embed=embed)
-        await send_to_changelog(ctx.guild, t.log_reddit_link_created(subreddit, channel.mention))
+        await send_to_changelog(ctx.guild, t.log_reddit_link_created(subreddit_name, channel.mention))
 
-    @reddit.command(name="remove", aliases=["r", "del", "d", "-"])
+    @reddit.command(name="remove", description="Subreddit-Verknüpfung entfernen")
     @RedditPermission.write.check
-    async def reddit_remove(self, ctx: Context, subreddit: str, channel: TextChannel | Thread):
-        """
-        remove a reddit link
-        """
-
-        subreddit = await get_subreddit_name(subreddit) or subreddit
-        link: Optional[RedditChannel] = await db.get(RedditChannel, subreddit=subreddit, channel=channel.id)
+    async def reddit_remove(
+        self,
+        ctx: ApplicationContext,
+        subreddit: str = Option(str, description="Subreddit-Name"),
+        channel: TextChannel = Option(TextChannel, description="Zielkanal"),
+    ):
+        subreddit_name = await get_subreddit_name(subreddit) or subreddit
+        link: Optional[RedditChannel] = await db.get(RedditChannel, subreddit=subreddit_name, channel=channel.id)
         if link is None:
             raise CommandError(t.reddit_link_not_found)
 
         await db.delete(link)
         embed = Embed(title=t.reddit, colour=Colors.Reddit, description=t.reddit_link_removed)
         await reply(ctx, embed=embed)
-        await send_to_changelog(ctx.guild, t.log_reddit_link_removed(subreddit, channel.mention))
+        await send_to_changelog(ctx.guild, t.log_reddit_link_removed(subreddit_name, channel.mention))
 
-    @reddit.command(name="interval", aliases=["int", "i"])
+    @reddit.command(name="interval", description="Abrufintervall in Stunden ändern")
     @RedditPermission.write.check
-    async def reddit_interval(self, ctx: Context, hours: int):
-        """
-        change lookup interval (in hours)
-        """
-
+    async def reddit_interval(self, ctx: ApplicationContext, hours: int = Option(int, description="Intervall in Stunden")):
         if not 0 < hours < (1 << 31):
             raise CommandError(t.invalid_interval)
 
@@ -235,13 +230,9 @@ class RedditCog(Cog, name="Reddit"):
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_reddit_interval_set(cnt=hours))
 
-    @reddit.command(name="limit", aliases=["lim"])
+    @reddit.command(name="limit", description="Maximale Anzahl an Beiträgen pro Abruf festlegen")
     @RedditPermission.write.check
-    async def reddit_limit(self, ctx: Context, limit: int):
-        """
-        change limit of posts to be sent concurrently
-        """
-
+    async def reddit_limit(self, ctx: ApplicationContext, limit: int = Option(int, description="Limit")):
         if not 0 < limit < (1 << 31):
             raise CommandError(t.invalid_limit)
 
@@ -250,13 +241,9 @@ class RedditCog(Cog, name="Reddit"):
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_reddit_limit_set(limit))
 
-    @reddit.command(name="nsfw_filter", aliases=["nsfw"])
+    @reddit.command(name="nsfw_filter", description="NSFW-Filter aktivieren oder deaktivieren")
     @RedditPermission.write.check
-    async def reddit_nsfw_filter(self, ctx: Context, enabled: bool):
-        """
-        enable/disable nsfw filter for posts
-        """
-
+    async def reddit_nsfw_filter(self, ctx: ApplicationContext, enabled: bool = Option(bool, description="Aktivieren")):
         embed = Embed(title=t.reddit, colour=Colors.Reddit)
         await RedditSettings.filter_nsfw.set(enabled)
         if enabled:
@@ -267,13 +254,9 @@ class RedditCog(Cog, name="Reddit"):
             await send_to_changelog(ctx.guild, t.log_nsfw_filter_now_disabled)
         await reply(ctx, embed=embed)
 
-    @reddit.command(name="trigger", aliases=["t"])
+    @reddit.command(name="trigger", description="Reddit-Abruf manuell ausführen")
     @RedditPermission.trigger.check
-    async def reddit_trigger(self, ctx: Context):
-        """
-        pull hot posts now and reset the timer
-        """
-
+    async def reddit_trigger(self, ctx: ApplicationContext):
         await self.start_loop(await RedditSettings.interval.get())
         embed = Embed(title=t.reddit, colour=Colors.Reddit, description=t.done)
         await reply(ctx, embed=embed)

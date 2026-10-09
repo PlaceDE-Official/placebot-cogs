@@ -2,8 +2,8 @@ import re
 import string
 from typing import List, Optional, Tuple
 
-from discord import Embed, Forbidden, Member, Message, PartialEmoji, Role, Status
-from discord.ext import commands
+from discord import Embed, Forbidden, Interaction, Member, Message, Option, PartialEmoji, Role, Status, slash_command
+from discord.commands import ApplicationContext
 from discord.ext.commands import CommandError, Context, guild_only
 from discord.utils import utcnow
 
@@ -13,7 +13,7 @@ from PyDrocsid.emojis import emoji_to_name, name_to_emoji
 from PyDrocsid.events import StopEventHandling
 from PyDrocsid.settings import RoleSettings
 from PyDrocsid.translations import t
-from PyDrocsid.util import RoleListConverter, check_wastebasket, is_teamler
+from PyDrocsid.util import check_wastebasket
 
 from .colors import Colors
 from .permissions import PollsPermission
@@ -82,7 +82,12 @@ async def send_poll(
     for field in fields:
         embed.add_field(name=field[0], value=field[1], inline=False)
 
-    poll: Message = await ctx.send(embed=embed)
+    poll: Message
+    if isinstance(ctx, ApplicationContext):
+        res = await ctx.respond(embed=embed)
+        poll = await res.original_response() if isinstance(res, Interaction) else res
+    else:
+        poll = await ctx.send(embed=embed)
 
     try:
         for option in options:
@@ -191,23 +196,36 @@ class PollsCog(Cog, name="Polls"):
                 await message.edit(embed=pollstatus)
                 return
 
-    @commands.command(usage=t.poll_usage, aliases=["vote"])
+    @slash_command(name="poll", description="Erstelle eine Umfrage")
     @guild_only()
-    async def poll(self, ctx: Context, *, args: str):
+    async def poll(
+        self,
+        ctx: ApplicationContext,
+        question: str = Option(str, description="Titel / Frage der Umfrage"),
+        options: str = Option(str, description="Antwortoptionen (durch Zeilenumbruch oder Semikolon getrennt)"),
+    ):
         """
         Starts a poll. Multiline options can be specified using a `\\` at the end of a line
         """
-
+        raw_options = [opt.strip() for opt in re.split(r"[\n;]", options) if opt.strip()]
+        args = question + "\n" + "\n".join(raw_options)
         await send_poll(ctx, t.poll, args)
 
-    @commands.command(usage=t.poll_usage, aliases=["teamvote", "tp"])
+    @slash_command(name="teampoll", description="Erstelle eine Team-Umfrage")
     @PollsPermission.team_poll.check
     @guild_only()
-    async def teampoll(self, ctx: Context, *, args: str):
+    async def teampoll(
+        self,
+        ctx: ApplicationContext,
+        question: str = Option(str, description="Titel / Frage der Team-Umfrage"),
+        options: str = Option(str, description="Antwortoptionen (durch Zeilenumbruch oder Semikolon getrennt)"),
+    ):
         """
         Starts a poll and shows, which teamler has not voted yet.
          Multiline options can be specified using a `\\` at the end of a line
         """
+        raw_options = [opt.strip() for opt in re.split(r"[\n;]", options) if opt.strip()]
+        args = question + "\n" + "\n".join(raw_options)
         roles = []
         for role_name in self.team_roles:
             if team_role := self.bot.guilds[0].get_role(await RoleSettings.get(role_name)):
@@ -223,55 +241,54 @@ class PollsCog(Cog, name="Polls"):
             allow_delete=False,
         )
 
-    @commands.command(usage=t.rolepoll_usage, aliases=["rolevote", "rpoll", "rv"])
+    @slash_command(name="rolepoll", description="Erstelle eine rollenbasierte Umfrage")
     @PollsPermission.role_poll.check
     @guild_only()
-    async def rolepoll(self, ctx: Context, *, args: str):
+    async def rolepoll(
+        self,
+        ctx: ApplicationContext,
+        role: Role = Option(Role, description="Berechtigte Rolle"),
+        question: str = Option(str, description="Titel / Frage der Umfrage"),
+        options: str = Option(str, description="Antwortoptionen (durch Zeilenumbruch oder Semikolon getrennt)"),
+    ):
         """
         Starts a poll and shows, which users with at least one given role have not voted yet.
          Multiline options can be specified using a `\\` at the end of a line
         """
-        role_list, *poll_options = args.splitlines()
-        roles = await RoleListConverter().convert(ctx, role_list)
+        raw_options = [opt.strip() for opt in re.split(r"[\n;]", options) if opt.strip()]
+        args = question + "\n" + "\n".join(raw_options)
+        roles = [role]
         await send_poll(
             ctx,
             t.rolepoll,
-            "\n".join(poll_options),
+            args,
             fields=[
-                (t.roles, "\n".join(role.mention for role in roles)),
+                (t.roles, "\n".join(r.mention for r in roles)),
                 (t.status, await self.get_reacted_users(roles)),
             ],
             allow_delete=False,
         )
 
-    @commands.command(aliases=["yn"])
+    @slash_command(name="yesno", description="Erstelle eine Ja/Nein-Umfrage")
     @guild_only()
-    async def yesno(self, ctx: Context, message: Optional[Message] = None, text: Optional[str] = None):
+    async def yesno(self, ctx: ApplicationContext, question: str = Option(str, description="Frage für die Abstimmung")):
         """
         adds thumbsup and thumbsdown reactions to the message
         """
-
-        if message is None or message.guild is None or text:
-            message = ctx.message
-
-        if message.author != ctx.author and not await is_teamler(ctx.author):
-            raise CommandError(t.foreign_message)
+        embed = Embed(title="Ja / Nein", description=question, color=Colors.Polls, timestamp=utcnow())
+        embed.set_author(name=str(ctx.author), icon_url=ctx.author.display_avatar.url)
+        res = await ctx.respond(embed=embed)
+        msg: Message = await res.original_response() if isinstance(res, Interaction) else res
 
         try:
-            await message.add_reaction(name_to_emoji["thumbsup"])
-            await message.add_reaction(name_to_emoji["thumbsdown"])
+            await msg.add_reaction(name_to_emoji["thumbsup"])
+            await msg.add_reaction(name_to_emoji["thumbsdown"])
         except Forbidden:
-            raise CommandError(t.could_not_add_reactions(message.channel.mention))
+            raise CommandError(t.could_not_add_reactions(ctx.channel.mention))
 
-        if message != ctx.message:
-            try:
-                await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
-            except Forbidden:
-                pass
-
-    @commands.command(aliases=["tyn"])
+    @slash_command(name="team_yesno", description="Erstelle eine Team-Ja/Nein-Umfrage")
     @guild_only()
-    async def team_yesno(self, ctx: Context, *, text: str):
+    async def team_yesno(self, ctx: ApplicationContext, question: str = Option(str, description="Frage für die Abstimmung")):
         """
         Starts a yes/no poll and shows, which teamler has not voted yet.
         """
@@ -279,25 +296,31 @@ class PollsCog(Cog, name="Polls"):
         for role_name in self.team_roles:
             if team_role := self.bot.guilds[0].get_role(await RoleSettings.get(role_name)):
                 roles.append(team_role)
-        embed = Embed(title=t.team_poll, description=text, color=Colors.Polls, timestamp=utcnow())
+        embed = Embed(title=t.team_poll, description=question, color=Colors.Polls, timestamp=utcnow())
         embed.set_author(name=str(ctx.author), icon_url=ctx.author.display_avatar.url)
 
         embed.add_field(name=t.roles, value="\n".join(role.mention for role in roles), inline=False)
         embed.add_field(name=t.status, value=await self.get_reacted_users(roles), inline=False)
 
-        message: Message = await ctx.send(embed=embed)
+        res = await ctx.respond(embed=embed)
+        message: Message = await res.original_response() if isinstance(res, Interaction) else res
         try:
             await message.add_reaction(name_to_emoji["+1"])
             await message.add_reaction(name_to_emoji["-1"])
         except Forbidden:
-            raise CommandError(t.could_not_add_reactions(message.channel.mention))
+            raise CommandError(t.could_not_add_reactions(ctx.channel.mention))
 
-    @commands.command()
-    @guild_only()
-    async def pollmembers(self, ctx: Context, message: Message):
+    @slash_command(name="pollmembers", description="Zeigt Mitglieder an, die noch nicht abgestimmt haben", guild_only=True)
+    async def pollmembers(self, ctx: ApplicationContext, message_id: str = Option(str, description="Nachrichten-ID der Umfrage")):
         """
         Shows which users did not react to a restricted poll.
         """
+        try:
+            msg_id = int(message_id.strip())
+            message = await ctx.channel.fetch_message(msg_id)
+        except (ValueError, Exception):
+            raise CommandError("Nachricht im aktuellen Kanal nicht gefunden!")
+
         if not self.can_use_poll(ctx.author, message):
             raise CommandError(t.role_poll_not_allowed)
 

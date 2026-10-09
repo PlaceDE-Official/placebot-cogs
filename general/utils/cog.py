@@ -1,17 +1,17 @@
 import itertools
 import random
-from typing import Optional, Union
+from typing import Optional
 
-from discord import Embed, Emoji, Member, User, ChannelType
-from discord.ext import commands
-from discord.ext.commands import CommandError, Context, guild_only, max_concurrency
+from discord import ChannelType, Embed, Member, Option, User, slash_command
+from discord.commands import ApplicationContext
+from discord.ext.commands import BadArgument, CommandError, guild_only, max_concurrency
 from discord.utils import format_dt, snowflake_time
 
 from PyDrocsid.async_thread import run_in_thread
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import docs, reply, add_reactions
+from PyDrocsid.command import reply
 from PyDrocsid.config import Config
-from PyDrocsid.converter import Color, EmojiConverter, UserMemberConverter
+from PyDrocsid.converter import EmojiConverter
 from PyDrocsid.translations import t
 from PyDrocsid.util import measure_latency
 
@@ -52,31 +52,26 @@ def generate_color(colors: list[tuple[float, float, float]], n: int, a: float) -
 class UtilsCog(Cog, name="Utils"):
     CONTRIBUTORS = [Contributor.Defelo]
 
-    @commands.command()
-    @docs(t.commands.ping)
-    async def ping(self, ctx: Context):
+    @slash_command(name="ping", description="Latenz des Bots messen")
+    async def ping(self, ctx: ApplicationContext):
         latency: Optional[float] = measure_latency()
         embed = Embed(title=t.pong, colour=Colors.Utils)
         if latency is not None:
             embed.description = t.pong_latency(latency * 1000)
         await reply(ctx, embed=embed)
 
-    @commands.command(aliases=["sf", "time"])
-    @docs(t.commands.snowflake)
-    async def snowflake(self, ctx: Context, arg: int):
-        if arg < 0:
-            raise CommandError(t.invalid_snowflake)
-
+    @slash_command(name="snowflake", description="Erstellungsdatum aus einer Discord-Snowflake-ID berechnen")
+    async def snowflake(self, ctx: ApplicationContext, snowflake_id: str = Option(str, description="Snowflake-ID")):
         try:
+            arg = int(snowflake_id)
+            if arg < 0:
+                raise CommandError(t.invalid_snowflake)
             await reply(ctx, format_dt(snowflake_time(arg), style="F"))
-        except (OverflowError, ValueError, OSError):
+        except (ValueError, OverflowError, OSError):
             raise CommandError(t.invalid_snowflake)
 
-    @commands.command(aliases=["enc"])
-    @docs(t.commands.encode)
-    async def encode(self, ctx: Context, *, user: UserMemberConverter):
-        user: Union[User, Member]
-
+    @slash_command(name="encode", description="UTF-8 Bytes eines Benutzernamens anzeigen")
+    async def encode(self, ctx: ApplicationContext, user: User = Option(User, description="Benutzer")):
         embed = Embed(color=Colors.Utils)
         embed.set_author(name=str(user), icon_url=user.display_avatar.url)
         embed.add_field(name=t.username, value=str(user.name.encode())[2:-1], inline=False)
@@ -85,16 +80,12 @@ class UtilsCog(Cog, name="Utils"):
 
         await reply(ctx, embed=embed)
 
-    @commands.command(aliases=["rc"])
+    @slash_command(name="suggest_role_color", description="Eine neue Rollenfarbe vorschlagen")
     @UtilsPermission.suggest_role_color.check
     @max_concurrency(1)
     @guild_only()
-    @docs(t.commands.suggest_role_color)
-    async def suggest_role_color(self, ctx: Context, *avoid: Color):
-        avoid: tuple[int]
-
+    async def suggest_role_color(self, ctx: ApplicationContext):
         colors = [hex(color)[2:].zfill(6) for role in ctx.guild.roles if (color := role.color.value)]
-        colors += [hex(c)[2:].zfill(6) for c in avoid]
         colors = [[int(x, 16) / 255 for x in [c[:2], c[2:4], c[4:]]] for c in colors]
         colors += itertools.product(range(2), repeat=3)
 
@@ -105,29 +96,32 @@ class UtilsCog(Cog, name="Utils"):
         embed.set_image(url=f"https://singlecolorimage.com/get/{color}/400x100")
         await reply(ctx, embed=embed)
 
-    @commands.command()
-    async def emoji_id(self, ctx: Context, emoji: EmojiConverter):
-        emoji: Emoji
-        await reply(ctx, content=str(emoji.id))
+    @slash_command(name="emoji_id", description="ID eines Emojis abrufen")
+    async def emoji_id(self, ctx: ApplicationContext, emoji: str = Option(str, description="Emoji")):
+        try:
+            converted = await EmojiConverter().convert(ctx, emoji)
+            await reply(ctx, content=str(converted.id))
+        except BadArgument:
+            raise CommandError("Emoji nicht gefunden!")
 
-    @commands.command()
-    async def uptime(self, ctx: Context):
+    @slash_command(name="uptime", description="Betriebszeit des Bots anzeigen")
+    async def uptime(self, ctx: ApplicationContext):
         embed = Embed(colour=Colors.Utils, title=t.uptime.title)
         embed.add_field(name=t.uptime.started, value=Config.STARTED.strftime("%d.%m.%Y %H:%M:%S"), inline=False)
         embed.add_field(name=t.uptime.last_reload, value=Config.LAST_RELOAD.strftime("%d.%m.%Y %H:%M:%S"), inline=False)
         embed.set_footer(text=t.uptime.utc)
         await reply(ctx, embed=embed)
 
-    @commands.command()
+    @slash_command(name="set_voice_quality", description="Bitrate aller Sprachkanäle anpassen")
     @UtilsPermission.set_voice_quality.check
-    @docs(t.commands.set_voice_quality)
-    async def set_voice_quality(self, ctx: Context, bitrate: int):
+    @guild_only()
+    async def set_voice_quality(self, ctx: ApplicationContext, bitrate: int = Option(int, description="Bitrate in bps")):
         for channel in ctx.guild.channels:
             if channel.type == ChannelType.voice and channel.bitrate != bitrate:
                 if not channel.permissions_for(ctx.me).manage_channels:
                     raise CommandError(t.no_permission(channel.mention))
                 await channel.edit(bitrate=bitrate)
-        await add_reactions(ctx.message, "white_check_mark")
+        await reply(ctx, content=":white_check_mark: Sprachqualität aller Sprachkanäle angepasst.")
 
 
     """@commands.command(aliases=["kesk", "cookie"])

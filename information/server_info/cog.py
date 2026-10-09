@@ -1,11 +1,10 @@
 from typing import List
 
-from discord import Embed, Guild, Member, Status
-from discord.ext import commands
-from discord.ext.commands import Context, UserInputError, guild_only
+from discord import Embed, Guild, Member, SlashCommandGroup, Status, slash_command
+from discord.commands import ApplicationContext
 
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import docs, reply
+from PyDrocsid.command import reply
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.translations import t
 
@@ -26,15 +25,21 @@ class ServerInfoCog(Cog, name="Server Information"):
     async def get_additional_fields(self, guild: Guild) -> list[tuple[str, str]]:
         return []
 
-    @commands.group()
-    @guild_only()
-    @docs(t.commands.server)
-    async def server(self, ctx: Context):
-        if ctx.subcommand_passed is not None:
-            if ctx.invoked_subcommand is None:
-                raise UserInputError
-            return
+    server = SlashCommandGroup(
+        name="server",
+        description="Server-Informationen anzeigen",
+        guild_only=True,
+    )
 
+    @server.command(name="info", description="Übersicht über den Server anzeigen")
+    async def server_info_cmd(self, ctx: ApplicationContext):
+        await self._send_server_info(ctx)
+
+    @slash_command(name="serverinfo", description="Übersicht über den Server anzeigen", guild_only=True)
+    async def serverinfo(self, ctx: ApplicationContext):
+        await self._send_server_info(ctx)
+
+    async def _send_server_info(self, ctx: ApplicationContext):
         guild: Guild = ctx.guild
         embed = Embed(title=guild.name, description=t.info_description, color=Colors.ServerInformation)
         if guild.icon:
@@ -57,9 +62,8 @@ class ServerInfoCog(Cog, name="Server Information"):
 
         await send_long_embed(ctx, embed)
 
-    @server.command(name="bots")
-    @docs(t.commands.bots)
-    async def server_bots(self, ctx: Context):
+    @server.command(name="bots", description="Alle Bots auf dem Server auflisten")
+    async def server_bots(self, ctx: ApplicationContext):
         guild: Guild = ctx.guild
         online: List[Member] = []
         offline: List[Member] = []

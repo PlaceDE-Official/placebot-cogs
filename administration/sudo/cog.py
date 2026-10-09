@@ -1,25 +1,18 @@
-import asyncio
-import multiprocessing
-import subprocess
 import sys
-import threading
-import time
 
-from discord import CheckFailure, CustomActivity, Embed, Member, Message, Status
-from discord.ext import commands
-from discord.ext.commands import Command, CommandError, Context, check
+from discord import CustomActivity, Embed, Member, Message, SlashCommandGroup, Status
+from discord.commands import ApplicationContext
+from discord.ext.commands import Context, check
 from discord.utils import utcnow
 
 from PyDrocsid.bot_mode import BotMode, get_mode_change_message, mode_args, write_status
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import can_run_command, reply
+from PyDrocsid.command import reply
 from PyDrocsid.config import Config
-from PyDrocsid.emojis import name_to_emoji
 from PyDrocsid.environment import SUDOERS
 from PyDrocsid.events import call_event_handlers
 from PyDrocsid.logger import get_logger
 from PyDrocsid.material_colors import MaterialColors
-from PyDrocsid.permission import permission_override
 from PyDrocsid.redis_client import redis
 from PyDrocsid.translations import t
 from PyDrocsid.types import GuildMessageable
@@ -36,14 +29,10 @@ logger = get_logger(__name__)
 
 
 @check
-async def can_see_sudo(ctx: Context) -> bool:
+async def can_see_sudo(ctx: Context | ApplicationContext) -> bool:
     if is_sudoer(ctx):
         return True
-    cmd: Command
-    for cmd in ctx.cog.__cog_commands__:
-        if not cmd.hidden and await can_run_command(cmd, ctx):
-            return True
-    raise CommandError(t.not_in_sudoers_file(ctx.author.mention))
+    return False
 
 
 class SudoCog(Cog, name="Sudo"):
@@ -57,45 +46,15 @@ class SudoCog(Cog, name="Sudo"):
         if ctx.author.id in SUDOERS:
             self.sudo_cache[(ctx.channel, ctx.author)] = ctx.message
 
-    @commands.group(hidden=True)
-    @can_see_sudo
-    async def sudo(self, ctx: Context):
-        """
-        A few commands which can do maintenance stuff.
+    sudo = SlashCommandGroup(
+        name="sudo",
+        description="Wartungs- und Administrationsbefehle",
+        guild_only=True,
+    )
 
-        Subcommands with extra permissions do not need sudo permissions to be used.
-
-        Run `sudo <CMD>` with any bot command to override ALL user related permissions checks once for that command.
-        You need extra sudo permissions to do this.
-        This permission can not be given or revoked using the bot itself.
-
-        All successful sudo commands are logged to console.
-        """
-        if is_sudoer(ctx):
-            permission_override.set(Config.SUDO)
-        if ctx.invoked_subcommand is None:
-            if not is_sudoer(ctx):
-                raise CheckFailure(t.not_in_sudoers_file(ctx.author.mention))
-            message: Message = ctx.message
-            cmd = ctx.message.content.lstrip(ctx.prefix + ctx.command.name).strip()
-            message.content = ctx.prefix + cmd
-
-            if cmd == "!!" and (msg := self.sudo_cache.pop((ctx.channel, ctx.author), None)):
-                message.content = msg.content
-
-            logger.info(
-                f"User {ctx.author.mention} ({ctx.author.name} / {ctx.author.id}) invoked sudo command: {message.content}"
-            )
-
-            await self.bot.process_commands(message)
-        else:
-            logger.info(
-                f"User {ctx.author.mention} ({ctx.author.name} / {ctx.author.id}) invoked sudo command: {ctx.message.content}"
-            )
-
-    @sudo.command(aliases=["sudoers"])
+    @sudo.command(name="show_sudoers", description="Alle Sudoer anzeigen")
     @SudoPermission.show_sudoers.check
-    async def show_sudoers(self, ctx: Context):
+    async def show_sudoers(self, ctx: ApplicationContext):
         """
         Shows all users, which can run the `sudo` command itself (without subcommands from this cog).
         """
@@ -103,18 +62,18 @@ class SudoCog(Cog, name="Sudo"):
         embed = Embed(color=MaterialColors.blue, title="Sudoers", description=t.sudoers_list(sudoers))
         await reply(ctx, embed=embed)
 
-    @sudo.command()
+    @sudo.command(name="clear_cache", description="Redis-Cache leeren")
     @SudoPermission.clear_cache.check
-    async def clear_cache(self, ctx: Context):
+    async def clear_cache(self, ctx: ApplicationContext):
         """
         Clears the redis cache.
         """
         await redis.flushdb()
-        await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+        await reply(ctx, content=":white_check_mark: Redis-Cache erfolgreich geleert.")
 
-    @sudo.command()
+    @sudo.command(name="reload", description="Alle Cogs des Bots neu laden")
     @SudoPermission.reload.check
-    async def reload(self, ctx: Context):
+    async def reload(self, ctx: ApplicationContext):
         """
         Reloads all cogs of the bot.
         Configs are not re-read.
@@ -122,11 +81,11 @@ class SudoCog(Cog, name="Sudo"):
         """
         await call_event_handlers("ready")
         Config.LAST_RELOAD = utcnow()
-        await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+        await reply(ctx, content=":white_check_mark: Cogs neu geladen.")
 
-    @sudo.command()
+    @sudo.command(name="restart", description="Bot komplett neu starten")
     @SudoPermission.restart.check
-    async def restart(self, ctx: Context):
+    async def restart(self, ctx: ApplicationContext):
         """
         Restarts the bot completely.
         Will stop all running actions.
@@ -136,13 +95,13 @@ class SudoCog(Cog, name="Sudo"):
             embed = Embed(color=MaterialColors.error, title=tg.bot_mode_change, description=message)
             await owner.send(embed=embed)
         logger.warning(message)
-        await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+        await reply(ctx, content=":white_check_mark: Bot wird neu gestartet...")
         await self.bot.close()
         exit(1)
 
-    @sudo.command()
+    @sudo.command(name="stop", description="Bot ordnungsgemäß stoppen")
     @SudoPermission.stop.check
-    async def stop(self, ctx: Context):
+    async def stop(self, ctx: ApplicationContext):
         """
         Stops the bot gracefully.
         """
@@ -153,26 +112,25 @@ class SudoCog(Cog, name="Sudo"):
             await owner.send(embed=embed)
         logger.warning(message)
         await write_status(message, BotMode.STOPPED)
-        await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+        await reply(ctx, content=":white_check_mark: Bot wird gestoppt.")
         await self.bot.close()
 
-    @sudo.command()
+    @sudo.command(name="kill", description="Bot sofort beenden")
     @SudoPermission.kill.check
-    async def kill(self, ctx: Context):
+    async def kill(self, ctx: ApplicationContext):
         """
         Kills the bot immediately.
         """
-
         Config.BOT_MODE = BotMode.KILLED
         message = get_mode_change_message(ctx)
         logger.warning(message)
         await write_status(message, BotMode.KILLED)
-
+        await reply(ctx, content=":skull: Bot-Prozess wird beendet.")
         sys.exit(1)
 
-    @sudo.command()
+    @sudo.command(name="maintenance", description="Wartungsmodus umschalten")
     @SudoPermission.toggle_maintenance.check
-    async def maintenance(self, ctx: Context):
+    async def maintenance(self, ctx: ApplicationContext):
         """
         Toggles maintenance mode of the bot.
         Users without sudo or `maintenance_bypass` permission can not interact with the bot in any meaningful way.
@@ -192,4 +150,3 @@ class SudoCog(Cog, name="Sudo"):
         else:
             await ctx.bot.change_presence(status=Status.online, activity=None)
         await reply(ctx, embed=embed)
-        await ctx.message.add_reaction(name_to_emoji["white_check_mark"])

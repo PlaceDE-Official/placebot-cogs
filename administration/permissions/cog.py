@@ -1,12 +1,12 @@
 import asyncio
 from typing import Optional
 
-from discord import Embed, Role
-from discord.ext import commands
-from discord.ext.commands import BadArgument, CommandError, Context, Converter, UserInputError, guild_only
+from discord import Embed, Option, Role, SlashCommandGroup
+from discord.commands import ApplicationContext
+from discord.ext.commands import BadArgument, CommandError, Context, Converter
 
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import docs, reply
+from PyDrocsid.command import reply
 from PyDrocsid.config import Config, get_subclasses_in_enabled_packages
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.permission import BasePermission, BasePermissionLevel
@@ -72,34 +72,49 @@ class PermissionsCog(Cog, name="Permissions"):
             pipe.delete(key)
         await pipe.execute()
 
-    @commands.group(aliases=["perm", "p"])
-    @guild_only()
-    @docs(t.commands.permissions)
-    async def permissions(self, ctx: Context):
-        if ctx.invoked_subcommand is None:
-            raise UserInputError
+    permissions = SlashCommandGroup(
+        name="permissions",
+        description="Bot-Berechtigungen anzeigen und verwalten",
+        guild_only=True,
+    )
 
-    @permissions.command(name="list", aliases=["show", "l", "?"])
+    @permissions.command(name="list", description="Alle Befehls-Berechtigungen auflisten")
     @PermissionsPermission.view_all.check
-    @docs(t.commands.permissions_list)
-    async def permissions_list(self, ctx: Context, min_level: Optional[PermissionLevelConverter]):
-        if min_level is None:
-            min_level = Config.DEFAULT_PERMISSION_LEVEL
+    async def permissions_list(
+        self,
+        ctx: ApplicationContext,
+        min_level: str | None = Option(str, description="Minimale Berechtigungsstufe (optional)", required=False, default=None),
+    ):
+        parsed_level = None
+        if min_level:
+            try:
+                parsed_level = await PermissionLevelConverter().convert(ctx, min_level)
+            except BadArgument:
+                raise CommandError(t.invalid_permission_level)
+        if parsed_level is None:
+            parsed_level = Config.DEFAULT_PERMISSION_LEVEL
 
-        await list_permissions(ctx, t.permissions_title, min_level)
+        await list_permissions(ctx, t.permissions_title, parsed_level)
 
-    @permissions.command(name="my", aliases=["m", "own", "o"])
+    @permissions.command(name="my", description="Eigene Berechtigungen auflisten")
     @PermissionsPermission.view_own.check
-    @docs(t.commands.permissions_my)
-    async def permissions_my(self, ctx: Context):
+    async def permissions_my(self, ctx: ApplicationContext):
         min_level: BasePermissionLevel = await Config.PERMISSION_LEVELS.get_permission_level(ctx.author)
         await list_permissions(ctx, t.my_permissions_title, min_level)
 
-    @permissions.command(name="set", aliases=["s", "="])
+    @permissions.command(name="set", description="Berechtigungsstufe für eine Permission konfigurieren")
     @PermissionsPermission.manage.check
-    @docs(t.commands.permissions_set)
-    async def permissions_set(self, ctx: Context, permission_name: str, level: PermissionLevelConverter):
-        level: BasePermissionLevel
+    async def permissions_set(
+        self,
+        ctx: ApplicationContext,
+        permission_name: str = Option(str, description="Name der Permission"),
+        level: str = Option(str, description="Neue Berechtigungsstufe"),
+    ):
+        try:
+            parsed_level = await PermissionLevelConverter().convert(ctx, level)
+        except BadArgument:
+            raise CommandError(t.invalid_permission_level)
+
         for permission in get_permissions():
             if permission.fullname.lower() == permission_name.lower():
                 break
@@ -107,20 +122,19 @@ class PermissionsCog(Cog, name="Permissions"):
             raise CommandError(t.invalid_permission)
 
         max_level: BasePermissionLevel = await Config.PERMISSION_LEVELS.get_permission_level(ctx.author)
-        if max(level.level, (await permission.resolve()).level) > max_level.level:
+        if max(parsed_level.level, (await permission.resolve()).level) > max_level.level:
             raise CommandError(t.cannot_manage_permission_level)
 
-        await permission.set(level)
+        await permission.set(parsed_level)
 
-        description = permission.fullname, level.description
+        description = permission.fullname, parsed_level.description
         embed = Embed(title=t.permissions_title, colour=Colors.Permissions, description=t.permission_set(*description))
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_permission_set(*description))
 
-    @permissions.command(name="permission_levels", aliases=["pl"])
+    @permissions.command(name="levels", description="Verfügbare Berechtigungsstufen anzeigen")
     @PermissionsPermission.view_all.check
-    @docs(t.commands.permissions_permission_levels)
-    async def permissions_permission_levels(self, ctx: Context):
+    async def permissions_permission_levels(self, ctx: ApplicationContext):
         embed = Embed(title=t.permission_levels, color=Colors.Permissions)
 
         for level in Config.PERMISSION_LEVELS:  # type: BasePermissionLevel

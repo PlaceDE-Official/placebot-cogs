@@ -2,8 +2,8 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
 
-from discord import Embed, Guild, Member, Message, NotFound, Permissions, Role, Status
-from discord.ext import commands
+from discord import Embed, Guild, Member, Message, NotFound, Option, Permissions, Role, Status, slash_command
+from discord.commands import ApplicationContext
 from discord.ext.commands import CommandError, Context, guild_only, max_concurrency
 from discord.utils import format_dt, utcnow
 
@@ -111,11 +111,11 @@ class InactivityCog(Cog, name="Inactivity"):
         for role in message.role_mentions:
             await Activity.update(role.id, message.created_at)
 
-    @commands.command()
+    @slash_command(name="scan", description="Kanäle nach neuester Nachricht jedes Nutzers scannen")
     @InactivityPermission.scan.check
     @max_concurrency(1)
     @guild_only()
-    async def scan(self, ctx: Context, days: int):
+    async def scan(self, ctx: ApplicationContext, days: int = Option(int, description="Anzahl an Tagen zurück")):
         """
         scan all channels for latest message of each user
         """
@@ -140,17 +140,20 @@ class InactivityCog(Cog, name="Inactivity"):
 
         return [(t.activity, status)]
 
-    @commands.command(aliases=["in"])
+    @slash_command(name="inactive", description="Inaktive Benutzer auflisten")
     @InactivityPermission.read.check
     @guild_only()
-    async def inactive(self, ctx: Context, days: Optional[int], *roles: Optional[Role]):
+    async def inactive(
+        self,
+        ctx: ApplicationContext,
+        days: int | None = Option(int, description="Inaktivität in Tagen (optional)", required=False, default=None),
+        role: Role | None = Option(Role, description="Optionale Rollen-Filterung", required=False, default=None),
+    ):
         """
         list inactive users
         """
 
-        if role := ctx.guild.get_role(days):
-            roles += (role,)
-            days = None
+        roles: tuple[Role, ...] = (role,) if role else ()
 
         if days is None:
             days = await InactivitySettings.inactive_days.get()
@@ -165,7 +168,7 @@ class InactivityCog(Cog, name="Inactivity"):
             return m, ts.timestamp if ts else None
 
         if roles:
-            members: set[Member] = {member for role in roles for member in role.members}
+            members: set[Member] = {member for r in roles for member in r.members}
         else:
             members: set[Member] = set(ctx.guild.members)
 
@@ -194,11 +197,15 @@ class InactivityCog(Cog, name="Inactivity"):
             embed.colour = 0x03AD28
         await send_long_embed(ctx, embed, paginate=True)
 
-    @commands.command(aliases=["indur"])
+    @slash_command(name="inactive_duration", description="Inaktivitäts-Dauer konfigurieren oder abfragen")
     @InactivityPermission.read.check
     @optional_permissions(InactivityPermission.write)
     @guild_only()
-    async def inactive_duration(self, ctx: Context, days: Optional[int]):
+    async def inactive_duration(
+        self,
+        ctx: ApplicationContext,
+        days: int | None = Option(int, description="Inaktivitäts-Dauer in Tagen (leer lassen für aktuellen Wert)", required=False, default=None),
+    ):
         """
         configure inactivity duration
         """

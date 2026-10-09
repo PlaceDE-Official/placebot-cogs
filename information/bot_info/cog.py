@@ -3,12 +3,12 @@ from __future__ import annotations
 from typing import Awaitable, Callable, Optional
 
 from aiohttp import ClientSession
-from discord import Embed, Game, Message, Status
-from discord.ext import commands, tasks
-from discord.ext.commands import Context
+from discord import Embed, Game, Message, Status, slash_command
+from discord.commands import ApplicationContext
+from discord.ext import tasks
 
 from PyDrocsid.cog import Cog, get_documentation
-from PyDrocsid.command import docs, reply
+from PyDrocsid.command import reply
 from PyDrocsid.config import Config
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.github_api import GitHubUser, get_users
@@ -180,37 +180,17 @@ class BotInfoCog(Cog, name="Bot Information"):
     #        embed.set_thumbnail(url=Config.REPO_ICON)
     #        await reply(ctx, embed=embed)
 
-    @commands.command(aliases=["v"])
-    @docs(t.commands.version)
-    async def version(self, ctx: Context):
+    @slash_command(name="version", description="Zeige die installierte Bot-Version an")
+    async def version(self, ctx: ApplicationContext):
         embed = Embed(title=f"{Config.NAME} v{Config.VERSION}", colour=Colors.version)
         await reply(ctx, embed=embed)
 
-    @commands.command(aliases=["infos", "about"])
-    @docs(t.commands.info)
-    async def info(self, ctx: Context):
+    @slash_command(name="info", description="Zeige allgemeine Informationen über den Bot an")
+    async def info(self, ctx: ApplicationContext):
         await send_long_embed(ctx, await self.build_info_embed())
 
-    #  @commands.command(aliases=["contri", "con"])
-    #  @docs(t.commands.contributors)
-    #  async def contributors(self, ctx: Context):
-    #      if not self.github_users:
-    #          await self.load_github_users()
-    #
-    #        contributors = [f for c, _ in Config.CONTRIBUTORS.most_common() if (f := self.format_contributor(c, True))]
-    #
-    #        await send_long_embed(
-    #            ctx,
-    #            Embed(
-    #                title=t.cnt_contributors(cnt=len(contributors)),
-    #                colour=Colors.info,
-    #                description="\n".join(f":small_orange_diamond: {con}" for con in contributors),
-    #            ),
-    #        )
-
-    @commands.command()
-    @docs(t.commands.cogs)
-    async def cogs(self, ctx: Context):
+    @slash_command(name="cogs", description="Zeige alle aktiven Cogs des Bots an")
+    async def cogs(self, ctx: ApplicationContext):
         description = []
         for name, cog in sorted(self.bot.cogs.items()):
             if doc_url := get_documentation(cog):

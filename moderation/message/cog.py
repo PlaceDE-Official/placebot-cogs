@@ -1,6 +1,7 @@
 from typing import Optional
 
-from discord import Embed, File, Forbidden, HTTPException, Member, Message, NotFound, Permissions, AllowedMentions
+from discord import AllowedMentions, Embed, File, Forbidden, HTTPException, Member, Message, NotFound, Option, Permissions, slash_command
+from discord.commands import ApplicationContext
 from discord.ext import commands
 from discord.ext.commands import CommandError, Context, UserInputError, guild_only
 
@@ -277,11 +278,14 @@ class MessageCog(Cog, name="Message Commands"):
         embed = Embed(title=t.messages, colour=Colors.MessageCommands, description=t.msg_deleted)
         await reply(ctx, embed=embed)
 
-    @commands.command(aliases=["clean"])
+    @slash_command(name="clear", description="Löscht die letzten N Nachrichten im Kanal")
     @MessagePermission.clear.check
     @guild_only()
-    @docs(t.commands.clear)
-    async def clear(self, ctx: Context, count: int):
+    async def clear(
+        self,
+        ctx: ApplicationContext,
+        count: int = Option(int, description="Anzahl der zu löschenden Nachrichten (1-100)"),
+    ):
         channel: GuildMessageable = ctx.channel
 
         if count not in range(1, 101):
@@ -290,9 +294,8 @@ class MessageCog(Cog, name="Message Commands"):
         if not await Confirmation().run(ctx, t.confirm(channel.mention, cnt=count)):
             return
 
-        messages = (await channel.history(limit=count + 2).flatten())[2:]
         try:
-            await channel.delete_messages(messages)
+            await channel.purge(limit=count)
         except (Forbidden, NotFound, HTTPException):
             raise CommandError(t.msg_not_deleted)
 

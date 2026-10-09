@@ -15,17 +15,19 @@ from discord import (
     Message,
     MessageType,
     NotFound,
+    Option,
     Role,
     TextChannel,
     User,
+    slash_command,
 )
-from discord.ext import commands
-from discord.ext.commands import CommandError, Context, UserInputError, guild_only, max_concurrency
+from discord.commands import ApplicationContext
+from discord.ext.commands import CommandError, Context, guild_only, max_concurrency
 from discord.utils import format_dt, snowflake_time, utcnow
 
 from PyDrocsid.async_thread import semaphore_gather
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import optional_permissions, reply
+from PyDrocsid.command import reply
 from PyDrocsid.config import Contributor
 from PyDrocsid.database import db, db_context, db_wrapper, filter_by
 from PyDrocsid.embeds import send_long_embed
@@ -64,17 +66,15 @@ def date_diff_to_str(date1: datetime, date2: datetime):
 
 
 async def get_user(
-    ctx: Context, user: Optional[Union[User, int]], permission: UserInfoPermission
+    ctx: Context | ApplicationContext, user: Optional[Union[User, int]], permission: UserInfoPermission
 ) -> tuple[Union[User, int], int, bool]:
-    arg_passed = len(ctx.message.content.strip(ctx.prefix).split()) >= 2
+    arg_passed = user is not None
     if user is None:
-        if arg_passed:
-            raise UserInputError
         user = ctx.author
 
     if isinstance(user, int):
         if not 0 <= user < (1 << 63):
-            raise UserInputError
+            raise CommandError("Ungültige User-ID")
         try:
             user = await ctx.bot.fetch_user(user)
         except NotFound:
@@ -204,9 +204,12 @@ class UserInfoCog(Cog, name="User Information"):
     async def handle_revoke_verification(self, member: Member):
         await Verification.create(member.id, str(member), False)
 
-    @commands.command(aliases=["user", "uinfo", "ui", "userstats", "stats"])
-    @optional_permissions(UserInfoPermission.view_userinfo)
-    async def userinfo(self, ctx: Context, user: Optional[Union[User, int]] = None):
+    @slash_command(name="userinfo", description="Informationen über einen Benutzer anzeigen")
+    async def userinfo(
+        self,
+        ctx: ApplicationContext,
+        user: User | None = Option(User, description="Benutzer (leer lassen für eigenen Account)", required=False, default=None),
+    ):
         """
         show information about a user
         """
@@ -233,18 +236,14 @@ class UserInfoCog(Cog, name="User Information"):
             for name, value in response:
                 embed.add_field(name=name, value=value, inline=False)
 
-        if arg_passed:
-            await reply(ctx, embed=embed)
-        else:
-            try:
-                await ctx.author.send(embed=embed)
-            except (Forbidden, HTTPException):
-                raise CommandError(t.could_not_send_dm)
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+        await reply(ctx, embed=embed, ephemeral=not arg_passed)
 
-    @commands.command(aliases=["userlog", "ulog"])
-    @optional_permissions(UserInfoPermission.view_userlog)
-    async def userlogs(self, ctx: Context, user: Optional[Union[User, int]] = None):
+    @slash_command(name="userlogs", description="Moderations-Log eines Benutzers anzeigen")
+    async def userlogs(
+        self,
+        ctx: ApplicationContext,
+        user: User | None = Option(User, description="Benutzer (leer lassen für eigenen Account)", required=False, default=None),
+    ):
         """
         show moderation log of a user
         """
@@ -298,18 +297,15 @@ class UserInfoCog(Cog, name="User Information"):
             value = row[1]
             embed.add_field(name=name, value=value, inline=False)
 
-        if arg_passed:
-            await send_long_embed(ctx, embed, paginate=True)
-        else:
-            try:
-                await send_long_embed(ctx.author, embed)
-            except (Forbidden, HTTPException):
-                raise CommandError(t.could_not_send_dm)
-            await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+        await send_long_embed(ctx, embed, paginate=True)
 
-    @commands.command()
+    @slash_command(name="joined", description="Zeigt die ungefähre Aufenthaltsdauer eines Mitglieds auf dem Server")
     @guild_only()
-    async def joined(self, ctx: Context, member: Member = None):
+    async def joined(
+        self,
+        ctx: ApplicationContext,
+        member: Member | None = Option(Member, description="Mitglied (leer lassen für eigenen Account)", required=False, default=None),
+    ):
         """
         Returns a rough estimate for the user's time on the server
         """
@@ -326,11 +322,11 @@ class UserInfoCog(Cog, name="User Information"):
         embed.set_author(name=str(member), icon_url=member.display_avatar.url)
         await reply(ctx, embed=embed)
 
-    @commands.command()
+    @slash_command(name="init_join_log", description="Join-Log-Einträge für alle Server-Mitglieder initialisieren")
     @UserInfoPermission.init_join_log.check
     @max_concurrency(1)
     @guild_only()
-    async def init_join_log(self, ctx: Context):
+    async def init_join_log(self, ctx: ApplicationContext):
         """
         create a join log entry for each server member
         """

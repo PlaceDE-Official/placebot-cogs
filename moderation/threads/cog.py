@@ -2,14 +2,14 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
 
-from discord import Embed, Forbidden, Role, TextChannel, Thread
-from discord.ext import commands
-from discord.ext.commands import Context, guild_only
+from discord import Embed, Forbidden, Role, TextChannel, Thread, slash_command
+from discord.commands import ApplicationContext
+from discord.ext.commands import Context
 from discord.utils import format_dt, snowflake_time, utcnow
 
 from PyDrocsid.async_thread import semaphore_gather, run_as_task
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import docs
+from PyDrocsid.command import reply
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.redis_client import redis
 from PyDrocsid.settings import RoleSettings
@@ -42,7 +42,7 @@ async def work_threads(ctx: Context):
     def last_timestamp(thread: Thread) -> datetime:
         return snowflake_time(thread.last_message_id)
 
-    msg = await ctx.reply(t.gathering_threads)
+    msg = await reply(ctx, t.gathering_threads)
 
     threads = [
         *{
@@ -110,9 +110,7 @@ class ThreadsCog(Cog, name="Thread Utils"):
         except Forbidden:
             await send_alert(thread.guild, t.new_thread_alert(thread.mention, thread.parent.mention))
 
-    @commands.command(aliases=["t"])
+    @slash_command(name="threads", description="Aktive und archivierte Threads auflisten", guild_only=True)
     @ThreadsPermission.list.check
-    @guild_only()
-    @docs(t.commands.threads)
-    async def threads(self, ctx: Context):
+    async def threads(self, ctx: ApplicationContext):
         await work_threads(ctx)

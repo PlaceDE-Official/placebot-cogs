@@ -1,6 +1,7 @@
 from typing import List, Optional, Union
 
-from discord import Embed, Message
+from discord import Embed, Message, Option, slash_command
+from discord.commands import ApplicationContext
 from discord.ext import commands
 from discord.ext.commands import Command, CommandError, Context, Group
 
@@ -123,7 +124,15 @@ async def send_help(ctx: Context, command_name: Optional[Union[str, Command]]) -
 class HelpCog(Cog, name="Help"):
     CONTRIBUTORS = [Contributor.Defelo, Contributor.ce_phox]
 
+    @slash_command(name="help", description="Hilfe zu Befehlen und Modulen anzeigen")
+    async def help_slash(
+        self,
+        ctx: ApplicationContext,
+        cog_or_command: str | None = Option(str, description="Name eines Befehls oder Cogs (optional)", required=False, default=None),
+    ):
+        await send_help(ctx, cog_or_command)
+
     @commands.command()
     @docs(t.commands.help)
-    async def help(self, ctx: Context, *, cog_or_command: Optional[str]):
+    async def help(self, ctx: Context, *, cog_or_command: Optional[str] = None):
         await send_help(ctx, cog_or_command)

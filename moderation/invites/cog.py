@@ -2,14 +2,14 @@ import re
 from typing import Optional
 
 import requests
-from discord import Embed, Forbidden, Guild, HTTPException, Invite, Member, Message, NotFound
-from discord.ext import commands
-from discord.ext.commands import CommandError, Context, Converter, UserInputError, guild_only
+from discord import Embed, Forbidden, Guild, HTTPException, Invite, Member, Message, NotFound, Option, SlashCommandGroup
+from discord.commands import ApplicationContext
+from discord.ext.commands import CommandError, Context, Converter
 from urllib3.exceptions import LocationParseError
 
 from PyDrocsid.async_thread import run_in_thread
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import Confirmation, optional_permissions, reply
+from PyDrocsid.command import reply
 from PyDrocsid.database import db, filter_by, select
 from PyDrocsid.embeds import send_long_embed
 from PyDrocsid.emojis import name_to_emoji
@@ -188,18 +188,14 @@ class InvitesCog(Cog, name="Allowed Discord Invites"):
         except (NotFound, HTTPException):
             return None
 
-    @commands.group(aliases=["i"])
-    @guild_only()
-    async def invites(self, ctx: Context):
-        """
-        manage allowed discord invites
-        """
+    invites = SlashCommandGroup(
+        name="invites",
+        description="Erlaubte Discord-Server und Einladungen verwalten",
+        guild_only=True,
+    )
 
-        if ctx.invoked_subcommand is None:
-            raise UserInputError
-
-    @invites.command(name="list", aliases=["l", "?"])
-    async def invites_list(self, ctx: Context):
+    @invites.command(name="list", description="Alle erlaubten Discord-Server auflisten")
+    async def invites_list(self, ctx: ApplicationContext):
         """
         list allowed discord servers
         """
@@ -219,16 +215,16 @@ class InvitesCog(Cog, name="Allowed Discord Invites"):
             embed.description = t.no_server_allowed
             await reply(ctx, embed=embed)
 
-    @invites.command(name="show", aliases=["info", "s", "i"])
-    async def invites_show(self, ctx: Context, *, invite: AllowedServerConverter):
+    @invites.command(name="show", description="Details zu einem erlaubten Server anzeigen")
+    async def invites_show(self, ctx: ApplicationContext, server: str = Option(str, description="Server-Name oder ID")):
         """
         show more information about an allowed discord server
         """
 
-        invite: AllowedInvite
-        date = invite.created_at
+        invite_row = await AllowedServerConverter().convert(ctx, server)
+        date = invite_row.created_at
         embed = Embed(title=t.allowed_server, color=Colors.Invites)
-        invite_guild = await self.check_invite(invite.code)
+        invite_guild = await self.check_invite(invite_row.code)
         if invite_guild is not None:
             invite_title = t.invite_link
             if invite_guild.guild.icon:
@@ -236,121 +232,57 @@ class InvitesCog(Cog, name="Allowed Discord Invites"):
         else:
             invite_title = t.invite_link_expired
 
-        embed.add_field(name=t.server_name, value=invite.guild_name)
-        embed.add_field(name=t.server_id, value=invite.guild_id)
-        embed.add_field(name=invite_title, value=f"https://discord.gg/{invite.code}")
-        if invite.description:
-            embed.add_field(name=t.description, value=invite.description, inline=False)
-        embed.add_field(name=t.applicant, value=f"<@{invite.applicant}>")
-        embed.add_field(name=t.approver, value=f"<@{invite.approver}>")
+        embed.add_field(name=t.server_name, value=invite_row.guild_name)
+        embed.add_field(name=t.server_id, value=invite_row.guild_id)
+        embed.add_field(name=invite_title, value=f"https://discord.gg/{invite_row.code}")
+        if invite_row.description:
+            embed.add_field(name=t.description, value=invite_row.description, inline=False)
+        embed.add_field(name=t.applicant, value=f"<@{invite_row.applicant}>")
+        embed.add_field(name=t.approver, value=f"<@{invite_row.approver}>")
         embed.add_field(name=t.date, value=f"{date.day:02}.{date.month:02}.{date.year:02}")
 
         await reply(ctx, embed=embed)
 
-    @invites.command(name="add", aliases=["+", "a"])
+    @invites.command(name="add", description="Einen neuen Discord-Server erlauben")
     @InvitesPermission.manage.check
-    async def invites_add(self, ctx: Context, invite: Invite, applicant: Member):
+    async def invites_add(
+        self,
+        ctx: ApplicationContext,
+        invite: str = Option(str, description="Einladungslink"),
+        applicant: Member = Option(Member, description="Antragsteller"),
+    ):
         """
         allow a new discord server
         """
 
-        if invite.guild is None:
+        try:
+            fetched_invite: Invite = await ctx.bot.fetch_invite(invite)
+        except (NotFound, HTTPException):
             raise CommandError(t.invalid_invite)
 
-        guild: Guild = invite.guild
+        if fetched_invite.guild is None:
+            raise CommandError(t.invalid_invite)
+
+        guild: Guild = fetched_invite.guild
         if await db.get(AllowedInvite, guild_id=guild.id) is not None:
             raise CommandError(t.server_already_whitelisted)
 
-        await AllowedInvite.create(guild.id, invite.code, guild.name, applicant.id, ctx.author.id)
+        await AllowedInvite.create(guild.id, fetched_invite.code, guild.name, applicant.id, ctx.author.id)
         await InviteLog.create(guild.id, guild.name, applicant.id, ctx.author.id, True)
         embed = Embed(title=t.invites, description=t.server_whitelisted, color=Colors.Invites)
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_server_whitelisted(guild.name))
 
-    @invites.group(name="update", aliases=["u"])
-    @optional_permissions(InvitesPermission.manage)
-    async def update(self, ctx: Context):
-        """
-        manage allowed discord invites
-        """
-
-        if ctx.invoked_subcommand is None:
-            raise UserInputError
-
-    @update.command(name="invite", aliases=["i"])
-    @optional_permissions(InvitesPermission.manage)
-    async def invite(self, ctx: Context, invite: Invite):
-        """
-        update the invite link of an allowed discord server
-        """
-
-        if invite.guild is None:
-            raise CommandError(t.invalid_invite)
-
-        guild: Guild = invite.guild
-        row: Optional[AllowedInvite] = await db.get(AllowedInvite, guild_id=guild.id)
-        if row is None:
-            raise CommandError(t.server_not_whitelisted)
-
-        if not await InvitesPermission.manage.check_permissions(ctx.author) and ctx.author.id != row.applicant:
-            raise CommandError(tg.not_allowed)
-
-        await AllowedInvite.update(guild.id, invite.code, guild.name)
-        embed = Embed(title=t.invites, description=t.invite_updated(guild.name), color=Colors.Invites)
-        await reply(ctx, embed=embed)
-        await send_to_changelog(ctx.guild, t.log_invite_updated(ctx.author.mention, guild.name))
-
-    @update.command(name="description", aliases=["d"])
-    @optional_permissions(InvitesPermission.manage)
-    async def description(self, ctx: Context, server: AllowedServerConverter, *, description: str | None = None):
-        """
-        update the description of an allowed discord server
-        """
-
-        server: AllowedInvite
-
-        if not await InvitesPermission.manage.check_permissions(ctx.author) and ctx.author.id != server.applicant:
-            raise CommandError(tg.not_allowed)
-
-        if not description:
-            if not await Confirmation().run(ctx, t.clear_description):
-                return
-
-            server.description = None
-
-            embed = Embed(title=t.invites, description=t.description_cleared(server.guild_name), color=Colors.Invites)
-            await reply(ctx, embed=embed)
-            await send_to_changelog(ctx.guild, t.log_description_cleared(ctx.author.mention, server.guild_name))
-            return
-
-        if len(description) > 500:
-            raise CommandError(t.description_too_long)
-
-        old = server.description
-        server.description = description
-
-        await reply(
-            ctx,
-            embed=Embed(
-                title=t.invites,
-                description=t.description_updated(old, description, server.guild_name),
-                color=Colors.Invites,
-            ),
-        )
-        await send_to_changelog(
-            ctx.guild, t.log_description_updated(ctx.author.mention, server.guild_name, old, description)
-        )
-
-    @invites.command(name="remove", aliases=["r", "del", "d", "-"])
+    @invites.command(name="remove", description="Einen Discord-Server von der Whitelist entfernen")
     @InvitesPermission.manage.check
-    async def invites_remove(self, ctx: Context, *, server: AllowedServerConverter):
+    async def invites_remove(self, ctx: ApplicationContext, server: str = Option(str, description="Server-Name oder ID")):
         """
         disallow a discord server
         """
 
-        server: AllowedInvite
-        await db.delete(server)
-        await InviteLog.create(server.guild_id, server.guild_name, server.applicant, ctx.author.id, False)
+        invite_row = await AllowedServerConverter().convert(ctx, server)
+        await db.delete(invite_row)
+        await InviteLog.create(invite_row.guild_id, invite_row.guild_name, invite_row.applicant, ctx.author.id, False)
         embed = Embed(title=t.invites, description=t.server_removed, color=Colors.Invites)
         await reply(ctx, embed=embed)
-        await send_to_changelog(ctx.guild, t.log_server_removed(server.guild_name))
+        await send_to_changelog(ctx.guild, t.log_server_removed(invite_row.guild_name))

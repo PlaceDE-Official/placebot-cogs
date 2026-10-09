@@ -1,17 +1,15 @@
 from datetime import datetime
-from typing import Optional, Union
+from typing import Optional
 
-from discord import Embed, Member, User
-from discord.ext import commands
-from discord.ext.commands import CommandError, Context, UserInputError, guild_only
+from discord import Embed, Member, Option, SlashCommandGroup, User
+from discord.commands import ApplicationContext
+from discord.ext.commands import CommandError
 from discord.utils import format_dt
 
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import Confirmation, docs
-from PyDrocsid.converter import UserMemberConverter
+from PyDrocsid.command import Confirmation, reply
 from PyDrocsid.database import db, select
 from PyDrocsid.embeds import send_long_embed
-from PyDrocsid.emojis import name_to_emoji
 from PyDrocsid.translations import t
 from PyDrocsid.util import is_teamler
 
@@ -44,19 +42,15 @@ class UserNoteCog(Cog, name="User Notes"):
 
         return out
 
-    @commands.group(aliases=["un"])
+    user_notes = SlashCommandGroup(
+        name="notes",
+        description="Notizen über Benutzer verwalten",
+        guild_only=True,
+    )
+
+    @user_notes.command(name="show", description="Notizen zu einem Benutzer anzeigen")
     @UserNotePermission.read.check
-    @guild_only()
-    @docs(t.commands.user_notes)
-    async def user_notes(self, ctx: Context):
-        if ctx.invoked_subcommand is None:
-            raise UserInputError
-
-    @user_notes.command(name="show", aliases=["s", "list", "l"])
-    @docs(t.commands.user_notes_show)
-    async def user_notes_show(self, ctx: Context, *, user: UserMemberConverter):
-        user: Union[User, Member]
-
+    async def user_notes_show(self, ctx: ApplicationContext, user: User = Option(User, description="Benutzer")):
         embed = Embed(title=t.user_notes, colour=Colors.user_notes)
         embed.set_author(name=f"{user} ({user.id})", icon_url=user.display_avatar.url)
         note: UserNote
@@ -73,23 +67,24 @@ class UserNoteCog(Cog, name="User Notes"):
 
         await send_long_embed(ctx, embed, paginate=True)
 
-    @user_notes.command(name="add", aliases=["a", "+"])
+    @user_notes.command(name="add", description="Notiz zu einem Benutzer hinzufügen")
     @UserNotePermission.write.check
-    @docs(t.commands.user_notes_add)
-    async def user_notes_add(self, ctx: Context, user: UserMemberConverter, *, content: str):
-        user: Union[User, Member]
-
+    async def user_notes_add(
+        self,
+        ctx: ApplicationContext,
+        user: User = Option(User, description="Benutzer"),
+        content: str = Option(str, description="Inhalt der Notiz"),
+    ):
         if len(content) > 1000:
             raise CommandError(t.too_long)
 
         await UserNote.create(user.id, ctx.author.id, content)
         await send_to_changelog(ctx.guild, t.new_note(ctx.author.mention, user.mention, content))
-        await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+        await reply(ctx, content=f":white_check_mark: Notiz für {user.mention} gespeichert.")
 
-    @user_notes.command(name="remove", aliases=["r", "delete", "d", "-"])
+    @user_notes.command(name="remove", description="Notiz anhand der ID löschen")
     @UserNotePermission.write.check
-    @docs(t.commands.user_notes_remove)
-    async def user_notes_remove(self, ctx: Context, note_id: int):
+    async def user_notes_remove(self, ctx: ApplicationContext, note_id: int = Option(int, description="Notiz-ID")):
         user_note: Optional[UserNote] = await db.get(UserNote, id=note_id)
         if not user_note:
             raise CommandError(t.note_not_found)
@@ -101,3 +96,4 @@ class UserNoteCog(Cog, name="User Notes"):
         await send_to_changelog(
             ctx.guild, t.removed_note(ctx.author.mention, f"<@{user_note.member_id}>", user_note.content)
         )
+        await reply(ctx, content=f":white_check_mark: Notiz #{note_id} gelöscht.")

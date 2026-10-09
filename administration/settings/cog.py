@@ -1,11 +1,11 @@
 import string
 
-from discord import Embed
-from discord.ext import commands
-from discord.ext.commands import CommandError, Context, guild_only
+from discord import Embed, Option, slash_command
+from discord.commands import ApplicationContext
+from discord.ext.commands import CommandError, guild_only
 
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import docs, reply
+from PyDrocsid.command import reply
 from PyDrocsid.prefix import set_prefix
 from PyDrocsid.translations import t
 
@@ -22,11 +22,14 @@ t = t.settings
 class SettingsCog(Cog, name="Settings"):
     CONTRIBUTORS = [Contributor.Defelo]
 
-    @commands.command(name="prefix")
+    @slash_command(name="prefix", description="Präfix für Text-Befehle ändern")
     @SettingsPermission.change_prefix.check
     @guild_only()
-    @docs(t.commands.change_prefix)
-    async def change_prefix(self, ctx: Context, *, new_prefix: str):
+    async def change_prefix(
+        self,
+        ctx: ApplicationContext,
+        new_prefix: str = Option(str, description="Neues Befehlspräfix (1-16 Zeichen)"),
+    ):
         if not 0 < len(new_prefix) <= 16:
             raise CommandError(t.invalid_prefix_length)
 

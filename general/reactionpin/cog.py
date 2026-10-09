@@ -1,8 +1,19 @@
 from typing import Optional
 
-from discord import Embed, Guild, HTTPException, Member, Message, MessageType, PartialEmoji, TextChannel
-from discord.ext import commands
-from discord.ext.commands import CommandError, Context, UserInputError, guild_only
+from discord import (
+    Embed,
+    Guild,
+    HTTPException,
+    Member,
+    Message,
+    MessageType,
+    Option,
+    PartialEmoji,
+    SlashCommandGroup,
+    TextChannel,
+)
+from discord.commands import ApplicationContext
+from discord.ext.commands import CommandError
 
 from PyDrocsid.cog import Cog
 from PyDrocsid.command import make_error, reply
@@ -87,19 +98,18 @@ class ReactionPinCog(Cog, name="ReactionPin"):
             await message.delete()
             raise StopEventHandling
 
-    @commands.group(aliases=["rp"])
+    reactionpin = SlashCommandGroup(
+        name="reactionpin",
+        description="ReactionPin konfigurieren",
+        guild_only=True,
+    )
+
+    @reactionpin.command(name="overview", description="Übersicht der konfigurierten Kanäle anzeigen")
     @ReactionPinPermission.read.check
-    @guild_only()
-    async def reactionpin(self, ctx: Context):
+    async def reactionpin_overview(self, ctx: ApplicationContext):
         """
         manage ReactionPin
         """
-
-        if ctx.subcommand_passed is not None:
-            if ctx.invoked_subcommand is None:
-                raise UserInputError
-            return
-
         embed = Embed(title=t.reactionpin, colour=Colors.ReactionPin)
 
         if await ReactionPinSettings.keep_pin_message.get():
@@ -122,9 +132,9 @@ class ReactionPinCog(Cog, name="ReactionPin"):
 
         await reply(ctx, embed=embed)
 
-    @reactionpin.command(name="add", aliases=["a", "+"])
+    @reactionpin.command(name="add", description="Kanal zur Whitelist hinzufügen")
     @ReactionPinPermission.write.check
-    async def reactionpin_add(self, ctx: Context, channel: TextChannel):
+    async def reactionpin_add(self, ctx: ApplicationContext, channel: TextChannel = Option(TextChannel, description="Kanal")):
         """
         add channel to whitelist
         """
@@ -140,9 +150,9 @@ class ReactionPinCog(Cog, name="ReactionPin"):
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_channel_whitelisted_rp(channel.mention))
 
-    @reactionpin.command(name="remove", aliases=["del", "r", "d", "-"])
+    @reactionpin.command(name="remove", description="Kanal von der Whitelist entfernen")
     @ReactionPinPermission.write.check
-    async def reactionpin_remove(self, ctx: Context, channel: TextChannel):
+    async def reactionpin_remove(self, ctx: ApplicationContext, channel: TextChannel = Option(TextChannel, description="Kanal")):
         """
         remove channel from whitelist
         """
@@ -155,9 +165,9 @@ class ReactionPinCog(Cog, name="ReactionPin"):
         await reply(ctx, embed=embed)
         await send_to_changelog(ctx.guild, t.log_channel_removed_rp(channel.mention))
 
-    @reactionpin.command(name="pin_message", aliases=["pm"])
+    @reactionpin.command(name="pin_message", description="Pin-Benachrichtigungen an- oder abschalten")
     @ReactionPinPermission.write.check
-    async def reactionpin_pin_message(self, ctx: Context, enabled: bool):
+    async def reactionpin_pin_message(self, ctx: ApplicationContext, enabled: bool = Option(bool, description="Aktivieren")):
         """
         enable/disable "pinned a message" notification
         """

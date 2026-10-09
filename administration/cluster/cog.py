@@ -1,17 +1,15 @@
 from datetime import timedelta
 
-from discord import Embed
-from discord.ext import commands
-from discord.ext.commands import Context, UserInputError, guild_only, CommandError
+from discord import Embed, Option, SlashCommandGroup
+from discord.commands import ApplicationContext
+from discord.ext.commands import CommandError
 from discord.utils import utcnow
 
 from PyDrocsid.cluster_model import ClusterNode
 from PyDrocsid.cog import Cog
-from PyDrocsid.command import docs
-from PyDrocsid.config import Config
+from PyDrocsid.command import reply
 from PyDrocsid.database import db, select
 from PyDrocsid.embeds import send_long_embed
-from PyDrocsid.emojis import name_to_emoji
 from PyDrocsid.environment import CLUSTER_NODE, CLUSTER_HEARTBEAT_TIMEOUT
 from PyDrocsid.translations import t
 from cluster import sort_nodes
@@ -29,16 +27,15 @@ class ClusterCog(Cog, name="Cluster"):
     def __init__(self):
         super().__init__()
 
-    @commands.group()
-    @ClusterPermission.read.check
-    @guild_only()
-    @docs(t.commands.cluster)
-    async def cluster(self, ctx: Context):
-        if ctx.subcommand_passed is not None:
-            if ctx.invoked_subcommand is None:
-                raise UserInputError
-            return
+    cluster = SlashCommandGroup(
+        name="cluster",
+        description="Cluster-Status und -Knoten verwalten",
+        guild_only=True,
+    )
 
+    @cluster.command(name="status", description="Cluster-Status anzeigen")
+    @ClusterPermission.read.check
+    async def cluster_status(self, ctx: ApplicationContext):
         embed = Embed(title=t.cluster, colour=Colors.Cluster)
         emoji_map = {
             "active": [":hourglass:", ":ballot_box_with_check:"],
@@ -57,7 +54,6 @@ class ClusterCog(Cog, name="Cluster"):
                 emoji_map["disabled"][node.disabled],
 
                 t.info_embed.last_ping + f": <t:{int(node.timestamp.timestamp())}:R>"
-                #t.info_embed.version + f": `v{Config.VERSION}`"
             ]
             embed.add_field(name=node.node_name, value="\n".join(filter(lambda x: x, value)), inline=False)
 
@@ -65,10 +61,14 @@ class ClusterCog(Cog, name="Cluster"):
 
         await send_long_embed(ctx, embed=embed)
 
-    @cluster.command(name="disable")
+    @cluster.command(name="disable", description="Einen Cluster-Knoten deaktivieren oder aktivieren")
     @ClusterPermission.disable.check
-    @docs(t.commands.disable)
-    async def disable_node(self, ctx: Context, name: str, disable: bool):
+    async def disable_node(
+        self,
+        ctx: ApplicationContext,
+        name: str = Option(str, description="Name des Knotens"),
+        disable: bool = Option(bool, description="Deaktivieren (True) oder Aktivieren (False)"),
+    ):
         # node should exist
         if not (node := await ClusterNode.get(name)):
             raise CommandError(t.node_non_existing)
@@ -80,12 +80,11 @@ class ClusterCog(Cog, name="Cluster"):
             raise CommandError(t.node_disable.already_enabled)
 
         node.disabled = disable
-        await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+        await reply(ctx, content=":white_check_mark: Status des Knotens aktualisiert.")
 
-    @cluster.command(name="transfer")
+    @cluster.command(name="transfer", description="Cluster-Transferierung anfordern")
     @ClusterPermission.transfer.check
-    @docs(t.commands.transfer)
-    async def transfer(self, ctx: Context):
+    async def transfer(self, ctx: ApplicationContext):
         if not (own_node := await ClusterNode.get(CLUSTER_NODE)):
             raise CommandError(t.self_not_found)
         if own_node.transferring:
@@ -103,4 +102,4 @@ class ClusterCog(Cog, name="Cluster"):
             raise CommandError(t.no_ready_node)
 
         own_node.transferring = True
-        await ctx.message.add_reaction(name_to_emoji["white_check_mark"])
+        await reply(ctx, content=":white_check_mark: Transferierung gestartet.")
