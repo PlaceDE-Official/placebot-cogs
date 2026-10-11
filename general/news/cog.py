@@ -238,6 +238,7 @@ class NewsCog(Cog, name="News"):
         channel: TextChannel = Option(TextChannel, description="Zielkanal"),
         discohook_url: str = Option(str, description="Discohook-URL"),
     ):
+        await ctx.defer(ephemeral=True)
         authorizations: list[NewsAuthorization] = await db.all(
             select(NewsAuthorization).filter(
                 and_(
@@ -294,6 +295,7 @@ class NewsCog(Cog, name="News"):
 
     @news.command(name="test", description="News-Nachricht per DM testen")
     async def news_test(self, ctx: ApplicationContext, discohook_url: str = Option(str, description="Discohook-URL")):
+        await ctx.defer(ephemeral=True)
         try:
             messages: list[MessageContent] = [
                 msg for msg in await load_discohook_link(discohook_url) if not msg.is_empty

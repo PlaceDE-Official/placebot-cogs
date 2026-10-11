@@ -9,7 +9,7 @@ from PyDrocsid.bot_mode import BotMode, get_mode_change_message, mode_args, writ
 from PyDrocsid.cog import Cog
 from PyDrocsid.command import reply
 from PyDrocsid.config import Config
-from PyDrocsid.environment import SUDOERS
+from PyDrocsid.environment import OWNER_IDS, SUDOERS
 from PyDrocsid.events import call_event_handlers
 from PyDrocsid.logger import get_logger
 from PyDrocsid.material_colors import MaterialColors
@@ -58,7 +58,9 @@ class SudoCog(Cog, name="Sudo"):
         """
         Shows all users, which can run the `sudo` command itself (without subcommands from this cog).
         """
-        sudoers = "\n".join({ctx.guild.owner.mention} | set(map(lambda x: f"<@{x}>", SUDOERS)))
+        owner_mention = {f"<@{ctx.guild.owner_id}>"} if ctx.guild and ctx.guild.owner_id else set()
+        all_sudoers = set(SUDOERS) | set(OWNER_IDS)
+        sudoers = "\n".join(owner_mention | set(map(lambda x: f"<@{x}>", all_sudoers)))
         embed = Embed(color=MaterialColors.blue, title="Sudoers", description=t.sudoers_list(sudoers))
         await reply(ctx, embed=embed)
 
